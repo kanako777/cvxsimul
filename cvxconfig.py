@@ -1,11 +1,14 @@
 import numpy as np
 
-SIMUL_TIME = 5
+SIMUL_TIME = 10
+CPU_MIN = 6
+CPU_MAX = 9
 FU_MAX = 30
+FB_MAX = 30
 TASK_SIZE_MAX = 100
-DELAY_MAX = 100
-MAX_BUS = 50
-NUM_BUS = 3 # 운행하는 버스의 대수(버스별로 자기 노선(path)을 가짐
+DELAY_MAX = 10
+MAX_BUS = 20
+NUM_BUS = 4 # 운행하는 버스의 대수(버스별로 자기 노선(path)을 가짐
 NUM_UAV = 1  # UAV의 개수
 NUM_TASK = 10
 FU = 3
@@ -33,6 +36,7 @@ W_ub = [[BANDWIDTH for j in range(NUM_BUS)] for i in range(NUM_UAV)] # 대역폭
 uavs_original = []
 buses_original = []
 bus_simul = []
+
 
 task_original = []
 sm = np.ones((NUM_TASK, NUM_UAV))
