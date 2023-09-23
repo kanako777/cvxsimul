@@ -7,11 +7,13 @@ import random
 import time
 from copy import deepcopy
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 import matplotlib.font_manager
+import cmocean.cm as cmo
+import seaborn as sns
 import itertools
 from cvxpy import *
 from cvxconfig import *
-
 
 rho_um = cvx.Variable([NUM_TASK, NUM_UAV], pos=True)
 rho_bm = cvx.Variable([NUM_TASK, NUM_BUS], pos=True)
@@ -54,27 +56,51 @@ class BUS:
         self.y = self.location[1]
 
 # BUS와 UAV 생성
-def make_bus(num_bus=NUM_BUS):
+def make_bus(real, num_bus=NUM_BUS):
+
     bus_count = 0
     paths = []
 
-    for i in range(num_bus):
-        path = [(random.randint(0, MAP_SIZE), random.randint(0, MAP_SIZE))]
-        while len(path) < NUM_PATH:
-            x, y = path[-1]
-            next_x = random.randint(x - random.randint(1, 50), x + random.randint(1, 50))
-            next_y = random.randint(y - random.randint(1, 50), y + random.randint(1, 50))
-            if next_x > 0 and next_x < MAP_SIZE and next_y > 0 and next_y < MAP_SIZE:
-                path.append((next_x, next_y))
+    if real:
+        simul_time = 10
+        with open("./buspos.txt", "r") as fp:
+            t = 0
+            while t < simul_time:
+                path = []
+                line = fp.readline()
+                poslst = line.split('/')[:-1]
+                for pos in poslst:
+                    x, y = np.array(pos.split(','), dtype=np.float32)
+                    path.append((x, y))
 
-        paths.append(path)
+                paths.append(path)
+                t += 1
+
+        paths = np.array(paths).transpose((1, 0, 2))
+        num_bus = len(paths)
+
+    else:
+        for i in range(num_bus):
+            path = [(random.randint(0, MAP_SIZE), random.randint(0, MAP_SIZE))]
+            while len(path) < NUM_PATH:
+                x, y = path[-1]
+                next_x = random.randint(x - random.randint(1, 50), x + random.randint(1, 50))
+                next_y = random.randint(y - random.randint(1, 50), y + random.randint(1, 50))
+                if next_x > 0 and next_x < MAP_SIZE and next_y > 0 and next_y < MAP_SIZE:
+                    path.append((next_x, next_y))
+
+            paths.append(path)
 
     # BUS 생성
     for i in range(num_bus):
         buses_original.append(BUS(i, paths[i], random.randint(CPU_MIN,CPU_MAX)))
         bus_count += 1
 
+    print(num_bus)
+
 def cal_distance(): # UAV와 BUS간의 전송률 계산
+
+    NUM_BUS = len(buses_original)
 
     for i in range(NUM_UAV):
 
@@ -157,6 +183,7 @@ def proposed_algorithm(k=FU, OMEGA=omega1):
 
         t_bus_cost = [[0 for _ in range(NUM_BUS)] for _ in range(NUM_TASK)]
 
+
         for m in range(NUM_TASK):
             for u in range(NUM_UAV):
                 for b in range(NUM_BUS):
@@ -164,6 +191,8 @@ def proposed_algorithm(k=FU, OMEGA=omega1):
                     #t_tx_cost = rho_bm[m,b] * sm[m] / R_ub[u][b]
 
                     # task m 처리를 위해 UAV -> bus b로 데이터를 보내는 데 필요한 에너지(e_tx) 계산 : 식(10)
+
+
                     e_tx_cost += rho_bm[m,b] * P_ub[u][b] * sm[m] / R_ub[u][b]
 
                     # bus b가 task m 처리를 위해 걸리는 시간 (t~_bm) 계산 : 식(21)
@@ -213,7 +242,51 @@ def proposed_algorithm(k=FU, OMEGA=omega1):
 
     return result, rho_um, rho_bm, fum, fbm, mum
 
-def uav_only_algorithm(k):
+def uav_only_algorithm(k=FU, distance=MAX_DISTANCE):
+
+    MAX_BUS = len(buses_original)
+
+    MAX_DISTANCE = distance
+    DMAT = [[0 for j in range(MAX_BUS)] for i in range(NUM_UAV)]
+    bus_simul = []
+
+    for i in range(NUM_UAV):
+        for j in range(MAX_BUS):
+
+            DMAT[i][j] = math.dist((uavs_original[0].x, uavs_original[0].y, uavs_original[0].z),
+                                   (buses_original[j].x, buses_original[j].y, 0))
+
+            if DMAT[i][j] <= MAX_DISTANCE:
+                bus_simul.append(buses_original[j])
+
+    NUM_BUS = len(bus_simul)
+
+    Distance = [[0 for j in range(NUM_BUS)] for i in range(NUM_UAV)]
+    P_ub = [[1 for j in range(NUM_BUS)] for i in range(NUM_UAV)]  # 전송 파워 (W)
+    R_ub = [[1 for j in range(NUM_BUS)] for i in range(NUM_UAV)]
+    W_ub = [[BANDWIDTH for j in range(NUM_BUS)] for i in range(NUM_UAV)]  # 대역폭 (Hz)
+
+    for i in range(NUM_UAV):
+        for j in range(NUM_BUS):
+            Distance[i][j] = math.dist((uavs_original[0].x, uavs_original[0].y, uavs_original[0].z),
+                                       (bus_simul[j].x, bus_simul[j].y, 0))
+            # Distance[i][j] = random.randint(distance-50, distance)
+
+            # 전송률 계산 (Shannon Capacity 공식 사용)
+            SNR = (P_ub[i][j] * alpha_0) / (Noise * Distance[i][j] ** 2)
+            R_ub[i][j] = W_ub[i][j] * math.log2(1 + SNR) / 1E9  # Gbps
+
+            # 결과 출력
+            # print("BUS ID:", j, "거리 :", Distance[i][j], "m ", " 전송률 :", R_ub[i][j], "Gbps")
+
+    rho_bm = cvx.Variable([NUM_TASK, NUM_BUS], pos=True)
+    fbm = cvx.Variable([NUM_TASK, NUM_BUS])
+
+    FU = k
+    FB = 0
+
+    for b in range(NUM_BUS):
+        FB += bus_simul[b].cpu
 
     FU = k
     loop = 1
@@ -261,15 +334,55 @@ def uav_only_algorithm(k):
 
     return result, fum, t_um_cost
 
-def bus_only_algorithm(k):
+def bus_only_algorithm(k=FU, distance=MAX_DISTANCE):
+    MAX_BUS = len(buses_original)
+
+    MAX_DISTANCE = distance
+
+    DMAT = [[0 for j in range(MAX_BUS)] for i in range(NUM_UAV)]
+    bus_simul = []
+
+    for i in range(NUM_UAV):
+        for j in range(MAX_BUS):
+
+            DMAT[i][j] = math.dist((uavs_original[0].x, uavs_original[0].y, uavs_original[0].z),
+                                   (buses_original[j].x, buses_original[j].y, 0))
+
+            if DMAT[i][j] <= MAX_DISTANCE:
+                bus_simul.append(buses_original[j])
+
+    NUM_BUS = len(bus_simul)
+
+    Distance = [[0 for j in range(NUM_BUS)] for i in range(NUM_UAV)]
+    P_ub = [[1 for j in range(NUM_BUS)] for i in range(NUM_UAV)]  # 전송 파워 (W)
+    R_ub = [[1 for j in range(NUM_BUS)] for i in range(NUM_UAV)]
+    W_ub = [[BANDWIDTH for j in range(NUM_BUS)] for i in range(NUM_UAV)]  # 대역폭 (Hz)
+
+    for i in range(NUM_UAV):
+        for j in range(NUM_BUS):
+            Distance[i][j] = math.dist((uavs_original[0].x, uavs_original[0].y, uavs_original[0].z),
+                                       (bus_simul[j].x, bus_simul[j].y, 0))
+            # Distance[i][j] = random.randint(distance-50, distance)
+
+            # 전송률 계산 (Shannon Capacity 공식 사용)
+            SNR = (P_ub[i][j] * alpha_0) / (Noise * Distance[i][j] ** 2)
+            R_ub[i][j] = W_ub[i][j] * math.log2(1 + SNR) / 1E9  # Gbps
+
+            # 결과 출력
+            # print("BUS ID:", j, "거리 :", Distance[i][j], "m ", " 전송률 :", R_ub[i][j], "Gbps")
+
+    rho_bm = cvx.Variable([NUM_TASK, NUM_BUS], pos=True)
+    fbm = cvx.Variable([NUM_TASK, NUM_BUS])
+
+    FU = k
+    FB = 0
+
+    for b in range(NUM_BUS):
+        FB += bus_simul[b].cpu
 
     t_um = 0
     t_bm = 0
     t_tx = 0
-
-    FB = 0
-    for b in range(NUM_BUS):
-        FB += buses_original[b].cpu
 
     rho_bm_k = np.ones((NUM_TASK, NUM_BUS)) * 1 / (NUM_UAV + NUM_BUS)
     f_b_k = np.ones((NUM_TASK, NUM_BUS)) * FB / NUM_BUS / NUM_TASK
@@ -354,16 +467,56 @@ def bus_only_algorithm(k):
 
     return result, rho_bm, fbm, mum
 
-def fixed_algorithm(k):
+def fixed_algorithm(k=FU, distance=MAX_DISTANCE):
+
+    MAX_BUS = len(buses_original)
+
+    MAX_DISTANCE = distance
+
+    DMAT = [[0 for j in range(MAX_BUS)] for i in range(NUM_UAV)]
+    bus_simul = []
+
+    for i in range(NUM_UAV):
+        for j in range(MAX_BUS):
+
+            DMAT[i][j] = math.dist((uavs_original[0].x, uavs_original[0].y, uavs_original[0].z),
+                                   (buses_original[j].x, buses_original[j].y, 0))
+
+            if DMAT[i][j] <= MAX_DISTANCE:
+                bus_simul.append(buses_original[j])
+
+    NUM_BUS = len(bus_simul)
+
+    Distance = [[0 for j in range(NUM_BUS)] for i in range(NUM_UAV)]
+    P_ub = [[1 for j in range(NUM_BUS)] for i in range(NUM_UAV)]  # 전송 파워 (W)
+    R_ub = [[1 for j in range(NUM_BUS)] for i in range(NUM_UAV)]
+    W_ub = [[BANDWIDTH for j in range(NUM_BUS)] for i in range(NUM_UAV)]  # 대역폭 (Hz)
+
+    for i in range(NUM_UAV):
+        for j in range(NUM_BUS):
+            Distance[i][j] = math.dist((uavs_original[0].x, uavs_original[0].y, uavs_original[0].z),
+                                       (bus_simul[j].x, bus_simul[j].y, 0))
+            # Distance[i][j] = random.randint(distance-50, distance)
+
+            # 전송률 계산 (Shannon Capacity 공식 사용)
+            SNR = (P_ub[i][j] * alpha_0) / (Noise * Distance[i][j] ** 2)
+            R_ub[i][j] = W_ub[i][j] * math.log2(1 + SNR) / 1E9  # Gbps
+
+            # 결과 출력
+            # print("BUS ID:", j, "거리 :", Distance[i][j], "m ", " 전송률 :", R_ub[i][j], "Gbps")
+
+    rho_bm = cvx.Variable([NUM_TASK, NUM_BUS], pos=True)
+    fbm = cvx.Variable([NUM_TASK, NUM_BUS])
+
+    FU = k
+    FB = 0
 
     t_um = 0
     t_bm = 0
     t_tx = 0
-    FU = k
 
-    FB = 0
     for b in range(NUM_BUS):
-        FB += buses_original[b].cpu
+        FB += bus_simul[b].cpu
 
     rho_um_k = np.ones((NUM_TASK, NUM_UAV)) * 1 / (NUM_UAV + NUM_BUS)
     rho_bm_k = np.ones((NUM_TASK, NUM_BUS)) * 1 / (NUM_UAV + NUM_BUS)
@@ -452,45 +605,9 @@ def fixed_algorithm(k):
 
     return result, rho_um, rho_bm, fum, fbm, mum
 
-def ratio_graph(rho_um, rho_bm, Distance):
-
-    xaxis = np.arange(1, NUM_TASK+1, 1)
-
-    x = np.zeros((NUM_TASK, NUM_UAV))
-    y = np.zeros((NUM_TASK, NUM_BUS))
-
-    for m in range(NUM_TASK):
-        for b in range(NUM_BUS):
-            y[m][b] = rho_bm[m][b].value
-
-    for m in range(NUM_TASK):
-        for u in range(NUM_UAV):
-            x[m][u] = rho_um[m][u].value
-
-    y1 = y.transpose()
-    x1 = x.transpose()
-
-    #marker = itertools.cycle(('+', '2', '.', 'x'))
-    #plt.style.use(['science', 'ieee', 'no-latex'])
-
-    plt.bar(xaxis, x1[0], label="UAV")
-    bottom = x1[0]
-
-    for b in range(NUM_BUS):
-        plt.bar(xaxis, y1[b], bottom=bottom, label="BUS" + str(b))
-        bottom += y1[b]
-
-    plt.legend(bbox_to_anchor=(1.05, 1.0), loc='upper left')
-
-    #plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.05), ncol=5, fancybox=True, shadow=True)
-
-    plt.xlabel("Task")
-    plt.ylabel("Optimal Task Offloading ratio.")
-    plt.xticks(xaxis)
-    plt.savefig("./graphs/" + "TASK_BUS_RATIO")
-    plt.clf()
-
 def proposed_algorithm2(k=FU, distance=MAX_DISTANCE):
+
+    MAX_BUS = len(buses_original)
 
     MAX_DISTANCE = distance
     print("거리", MAX_DISTANCE)
@@ -507,7 +624,6 @@ def proposed_algorithm2(k=FU, distance=MAX_DISTANCE):
                 bus_simul.append(buses_original[j])
 
     NUM_BUS = len(bus_simul)
-
 
     print("버스 대수 : ", NUM_BUS)
 
@@ -528,17 +644,14 @@ def proposed_algorithm2(k=FU, distance=MAX_DISTANCE):
             # 결과 출력
             # print("BUS ID:", j, "거리 :", Distance[i][j], "m ", " 전송률 :", R_ub[i][j], "Gbps")
 
-    #rho_um = cvx.Variable([NUM_TASK, NUM_UAV], pos=True)
     rho_bm = cvx.Variable([NUM_TASK, NUM_BUS], pos=True)
-    #fum = cvx.Variable([NUM_TASK, NUM_UAV])
     fbm = cvx.Variable([NUM_TASK, NUM_BUS])
-    #mum = cvx.Variable()
 
     FU = k
     FB = 0
 
     for b in range(NUM_BUS):
-        FB+=buses_original[b].cpu
+        FB+=bus_simul[b].cpu
 
     t_um = 0
     t_bm = 0
@@ -636,3 +749,53 @@ def proposed_algorithm2(k=FU, distance=MAX_DISTANCE):
         loop += 1
 
     return result, rho_um, rho_bm, fum, fbm, mum, NUM_BUS
+
+
+def draw_map(X, Y, buses_original):
+    # 버스 경로를 파일로 프린트
+    fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(8, 4), gridspec_kw={"wspace": 0.0, "hspace": 0.0}, sharex=False, sharey=True, constrained_layout=True)
+
+    filename = "map3.png"
+    lonmin, lonmax, latmin, latmax = (-400,1350,-100,1100) # just example
+
+    image_extent = (lonmin, lonmax, latmin, latmax)
+
+    ax1.imshow(plt.imread(filename), extent=image_extent)
+    ax2.imshow(plt.imread(filename), extent=image_extent)
+
+    x = []
+    y = []
+    for bus in buses_original:
+        for i in range(len(bus.path)):
+            tx, ty = bus.path[i]
+            x.append(tx)
+            y.append(ty)
+
+    ax1.scatter(x, y, s=100, alpha=0.5)
+    #ax1.scatter(X, Y, s=150, marker="X", color='r', alpha=1)
+    ax1.set_ylim((-100, 1100))
+    ax1.set_xlim((-100, 1100))
+
+    sns.kdeplot(x=x, y=y, cmap=plt.cm.GnBu, fill=True, levels=30, ax=ax2)
+    #ax2.scatter(X, Y, s=150, marker="X", color='r', alpha=1)
+    ax2.set_ylim((-100, 1100))
+    ax2.set_xlim((-100, 1100))
+
+    num = [0, 1, 2, 3, 4]
+    for i in num:
+        for j in num:
+            #test = patches.Rectangle((j * 200, i * 200), 200, 200, linewidth=0.5, edgecolor='g', facecolor='none', linestyle=':')
+            #ax1.add_patch(test)
+            pass
+
+    for i in num:
+        for j in num:
+            test = patches.Rectangle((j * 200, i * 200), 200, 200, linewidth=0.5, edgecolor='g', facecolor='none', linestyle=':')
+            ax2.add_patch(test)
+
+    #for i in range(len(POSITION)):
+        #x, y = POSITION[i]
+        #ax2.text(x * 200 + 10, y*200+160, "P{}".format(9-i), dict(size=15))
+
+    plt.savefig("./graphs/map")
+    plt.clf()

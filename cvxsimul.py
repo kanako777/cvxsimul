@@ -18,25 +18,73 @@ import itertools
 for i in range(NUM_UAV):
     uavs_original.append(UAV(i, X, Y, Z))
 
+# MODE = 0 : UAV와 BUS의 ratio 실험
+# MODE = 1 : UAV의 CPU를 증가시켜가며 실험
+# MODE = 2 : TASK의 data size를 증가시켜가며 테스트
+# MODE = 3 : BUS 1대의 CPU를 증가시켜가며 실험
+# MODE = 4 : omega1를 증가시켜가며 실험
+# MODE = 5 : UAV가 버스를 찾는 거리를 증가시키면서 시뮬레이션
+# MODE = 6 : draw map
+
 MODE = 0
+REAL = 1
+BUS_NUM = 5
 
 if MODE == 0: # UAV와 BUS의 ratio 실험
 
-    make_bus()
-    cal_distance()
+    make_bus(REAL,BUS_NUM)
     make_task(5, 10, 200, 200)
 
-    result, rho_um, rho_bm, fum, fbm, mum = proposed_algorithm(FU)  # 제안 알고리즘
-    #result, rho_um, rho_bm, fum, fbm, mum = proposed2(FU)  # equal 알고리즘
+    #result, rho_um, rho_bm, fum, fbm, mum = proposed_algorithm(FU)  # 제안 알고리즘
+    result, rho_um, rho_bm, fum, fbm, mum, num_bus1 = proposed_algorithm2(FU)  # 제안 알고리즘
 
     print(rho_um.value, fum.value, rho_bm.value, fbm.value)
     print(mum.value)
-    ratio_graph(rho_um, rho_bm, Distance) # UAV와 BUS의 ratio 그래프 그리기
+
+    NUM_BUS = num_bus1
+    xaxis = np.arange(1, NUM_TASK + 1, 1)
+
+    x = np.zeros((NUM_TASK, NUM_UAV))
+    y = np.zeros((NUM_TASK, NUM_BUS))
+
+    for m in range(NUM_TASK):
+        for b in range(NUM_BUS):
+            y[m][b] = rho_bm[m][b].value
+
+    for m in range(NUM_TASK):
+        for u in range(NUM_UAV):
+            x[m][u] = rho_um[m][u].value
+
+    y1 = y.transpose()
+    x1 = x.transpose()
+
+    # marker = itertools.cycle(('+', '2', '.', 'x'))
+    # plt.style.use(['science', 'ieee', 'no-latex'])
+
+    plt.bar(xaxis, x1[0], label="UAV")
+    bottom = x1[0]
+
+    for b in range(NUM_BUS):
+        plt.bar(xaxis, y1[b], bottom=bottom, label="BUS" + str(b + 1) + " : " + str(buses_original[b].cpu) + "GHz")
+        bottom += y1[b]
+
+    # plt.legend(bbox_to_anchor=(1.05, 1.0), loc='upper left')
+    # plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.05), ncol=5, fancybox=True, shadow=True)
+
+    plt.xlabel("Task")
+    plt.ylabel("Optimal Task Offloading ratio.")
+    plt.legend(loc='best')
+    plt.legend(frameon=True)
+    plt.xticks(xaxis)
+    plt.savefig("./graphs/" + "TASK_BUS_RATIO" + str(REAL))
+    plt.clf()
+
+    draw_map(X, Y, buses_original)
+
 
 if MODE == 1: # UAV의 CPU를 증가시켜가며 실험
 
-    make_bus()
-    cal_distance()
+    make_bus(REAL,BUS_NUM)
     make_task(10, 20, 100, 200)
 
     STEP = (FU_MAX + 1)//3
@@ -50,7 +98,7 @@ if MODE == 1: # UAV의 CPU를 증가시켜가며 실험
     for k in range(3, FU_MAX+1, 3):
 
         print("STEP : ", k_index+1, "UAV CPU : ", k)
-        result1, rho_um1, rho_bm1, fum1, fbm1, mum1 = proposed_algorithm(k) # 제안 알고리즘
+        result1, rho_um1, rho_bm1, fum1, fbm1, mum1, num_bus1 = proposed_algorithm2(k) # 제안 알고리즘
         result2, fum2, t_um_cost = uav_only_algorithm(k) # uav only 알고리즘
         result3, rho_bm3, fbm3, mum3 = bus_only_algorithm(k)  # bus only 알고리즘
         result4, rho_um4, rho_bm4, fum4, fbm4, mum4 = fixed_algorithm(k)  # fixed 알고리즘
@@ -73,12 +121,12 @@ if MODE == 1: # UAV의 CPU를 증가시켜가며 실험
     plt.ylabel('System Cost')
     plt.legend(loc='best')
     plt.legend(frameon=True)
-    plt.savefig("./graphs/" + "UAV_CPU_COST")
+    plt.savefig("./graphs/" + "UAV_CPU_COST" + str(REAL))
     plt.clf()
 
 if MODE == 2: # TASK의 data size를 증가시켜가며 테스트
 
-    make_bus()
+    make_bus(REAL, NUM_BUS)
     cal_distance()
 
     STEP = (TASK_SIZE_MAX + 1) // 10
@@ -127,7 +175,7 @@ if MODE == 2: # TASK의 data size를 증가시켜가며 테스트
 
 if MODE == 3: # BUS 1대의 CPU를 증가시켜가며 실험
 
-    make_bus()
+    make_bus(REAL, NUM_BUS)
     cal_distance()
     make_task(10, 20, 100, 200)
 
@@ -179,7 +227,7 @@ if MODE == 3: # BUS 1대의 CPU를 증가시켜가며 실험
 
 if MODE == 4: # omega1를 증가시켜가며 실험
 
-    make_bus()
+    make_bus(REAL, NUM_BUS)
     cal_distance()
     make_task(10, 20, 100, 200)
 
@@ -228,8 +276,8 @@ if MODE == 4: # omega1를 증가시켜가며 실험
 
 if MODE == 5: # UAv가 버스를 찾는 거리를 증가시키면서 시뮬레이션
 
-    make_bus(MAX_BUS)
-    make_task(20, 20, 200, 200)
+    make_bus(REAL, MAX_BUS)
+    make_task(10, 20, 100, 200)
 
     system_cost = np.zeros(SIMUL_TIME)
     bus_ratio = np.zeros(SIMUL_TIME)
@@ -273,17 +321,6 @@ if MODE == 5: # UAv가 버스를 찾는 거리를 증가시키면서 시뮬레�
     plt.savefig("./graphs/" + "DISTANCE_RATIO")
     plt.clf()
 
-    #plt.plot(x, bus_ratio, marker=next(marker))
-    #plt.plot(x, y_bus_num, marker=next(marker), label="Number of buses")
-
-    #plt.xticks(x)
-    #plt.xlabel('Length of $\L_{CoA}$ (m)')
-    #plt.ylabel('Offloading ratio to buses')
-    #plt.legend(loc='best')
-    #plt.legend(frameon=True)
-    #plt.savefig("./graphs/" + "DISTANCE_RATIO")
-    #plt.clf()
-
 
 if MODE == 10: # 버스를 이동하면서 시뮬레이션
 
@@ -310,5 +347,3 @@ if MODE == 10: # 버스를 이동하면서 시뮬레이션
         for bus in buses_original:
             bus.move()
         cal_distance()
-
-
