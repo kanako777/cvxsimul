@@ -2,11 +2,12 @@ import numpy as np
 
 SIMUL_TIME = 10
 CPU_MIN = 9
-CPU_MAX = 12
+CPU_MAX = 15
 FU_MAX = 30
 FB_MAX = 30
 TASK_SIZE_MAX = 100
-DELAY_MAX = 100
+DELAY_MIN = 1
+DELAY_MAX = 2
 MAX_BUS = 30
 NUM_BUS = 3 # 운행하는 버스의 대수(버스별로 자기 노선(path)을 가짐
 NUM_UAV = 1  # UAV의 개수
@@ -15,7 +16,7 @@ FU = 3
 FB = 9
 BANDWIDTH = 1*10**6
 LOOP_COUNT = 5
-MAX_DISTANCE = 500
+MAX_DISTANCE = 1000
 
 NUM_PATH = 20  # 버스 운행경로별로 지나는 정류장(지점)의 개수
 MAP_SIZE = 1000  # MAP크기

@@ -39,6 +39,7 @@ class BUS:
         self.path = path
         self.reset()
         self.cpu = cpu
+        self.distance = 0
 
     def reset(self):
         self.path_index = 0
@@ -57,7 +58,7 @@ class BUS:
         self.y = self.location[1]
 
 # BUS와 UAV 생성
-def make_bus(real, num_bus=NUM_BUS):
+def make_bus(real, num_bus=NUM_BUS, CPU_MIN=CPU_MIN, CPU_MAX=CPU_MAX):
 
     bus_count = 0
     paths = []
@@ -96,8 +97,68 @@ def make_bus(real, num_bus=NUM_BUS):
     for i in range(num_bus):
         buses_original.append(BUS(i, paths[i], random.randint(CPU_MIN,CPU_MAX)))
         bus_count += 1
+        print("BUS ID:", i, "CPU:", buses_original[i].cpu, "위치:", (buses_original[i].x, buses_original[i].y))
 
     print(num_bus)
+
+
+def make_bus2(real, num_bus=NUM_BUS, mode=0):
+
+    bus_count = 0
+    paths = []
+
+    if real:
+        simul_time = 10
+        with open("./buspos.txt", "r") as fp:
+            t = 0
+            while t < simul_time:
+                path = []
+                line = fp.readline()
+                poslst = line.split('/')[:-1]
+                for pos in poslst:
+                    x, y = np.array(pos.split(','), dtype=np.float32)
+                    path.append((x, y))
+
+                paths.append(path)
+                t += 1
+
+        paths = np.array(paths).transpose((1, 0, 2))
+        num_bus = len(paths)
+
+    else:
+        for i in range(num_bus):
+            path = [(random.randint(0, MAP_SIZE), random.randint(0, MAP_SIZE))]
+            while len(path) < NUM_PATH:
+                x, y = path[-1]
+                next_x = random.randint(x - random.randint(1, 50), x + random.randint(1, 50))
+                next_y = random.randint(y - random.randint(1, 50), y + random.randint(1, 50))
+                if next_x > 0 and next_x < MAP_SIZE and next_y > 0 and next_y < MAP_SIZE:
+                    path.append((next_x, next_y))
+
+            paths.append(path)
+
+    # BUS 생성
+    for i in range(num_bus):
+        if i<2:
+            if mode:
+                buses_original.append(BUS(i, paths[i], random.randint(6,8)))
+            else:
+                buses_original.append(BUS(i, paths[i], random.randint(4, 6)))
+        elif i<4:
+            if mode:
+                buses_original.append(BUS(i, paths[i], random.randint(10,12)))
+            else:
+                buses_original.append(BUS(i, paths[i], random.randint(8,10)))
+        else:
+            if mode:
+                buses_original.append(BUS(i, paths[i], random.randint(14, 16)))
+            else:
+                buses_original.append(BUS(i, paths[i], random.randint(12, 15)))
+
+        bus_count += 1
+
+    print(num_bus)
+
 
 def cal_distance(): # UAV와 BUS간의 전송률 계산
 
@@ -109,6 +170,7 @@ def cal_distance(): # UAV와 BUS간의 전송률 계산
 
             Distance[i][j] = math.dist((uavs_original[0].x, uavs_original[0].y, uavs_original[0].z),
                                        (buses_original[j].x, buses_original[j].y, 0))
+            buses_original[j].distance = round(Distance[i][j])
 
             # 전송률 계산 (Shannon Capacity 공식 사용)
             SNR = (P_ub[i][j] * alpha_0) / (Noise * Distance[i][j] ** 2)
@@ -118,12 +180,28 @@ def cal_distance(): # UAV와 BUS간의 전송률 계산
             # print("거리 :", Distance[i][j], "m ", " 전송률 :", R_ub[i][j], "Gbps")
 
 # TASK 생성
-def make_task(start_size, end_size, min_cycle, max_cycle):
+def make_task(start_size, end_size, min_cycle, max_cycle, num_task=NUM_TASK):
+
+    NUM_TASK = num_task
 
     for i in range(NUM_TASK):
         sm[i] = random.randint(start_size, end_size) / 1E3 # 1~20Mbits (Gbits 단위로 변환)
         cm[i] = sm[i] * random.randint(min_cycle, max_cycle) # 200 cycles per bit (Gcycls 단위로 변환)
-        dm[i] = DELAY_MAX  # 10 seconds
+        dm[i] = random.randint(DELAY_MIN, DELAY_MAX)
+
+        print("TASK", i+1, " Size:", sm[i]*1E3, "Mbits", "Cycles:", cm[i])
+
+def make_task2(start_size, end_size, min_cycle, max_cycle):
+
+    for i in range(NUM_TASK):
+        if i<3:
+            sm[i] = random.randint(3, 5) / 1E3 # 1~20Mbits (Gbits 단위로 변환)
+        elif i<6:
+            sm[i] = random.randint(8, 10) / 1E3  # 1~20Mbits (Gbits 단위로 변환)
+        else:
+            sm[i] = random.randint(13, 15) / 1E3  # 1~20Mbits (Gbits 단위로 변환)
+        cm[i] = sm[i] * random.randint(min_cycle, max_cycle) # 200 cycles per bit (Gcycls 단위로 변환)
+        dm[i] = random.randint(DELAY_MIN, DELAY_MAX)  # 10 seconds
 
         print("TASK", i+1, " Size:", sm[i]*1E3, "Mbits", "Cycles:", cm[i])
 
@@ -133,11 +211,23 @@ def dbm_to_watt(dbm):
 def watt_to_dbm(watt):
     return 10 * math.log10(1000 * watt)
 
-def proposed_algorithm(k=FU, OMEGA=omega1):
+def proposed_algorithm(k=FU, o1=omega1, o2=omega2):
+
+    omega1 = o1
+    omega2 = o2
+
+    rho_um = cvx.Variable([NUM_TASK, NUM_UAV], pos=True)
+    rho_bm = cvx.Variable([NUM_TASK, NUM_BUS], pos=True)
+    fum = cvx.Variable([NUM_TASK, NUM_UAV])
+    fbm = cvx.Variable([NUM_TASK, NUM_BUS])
+    mum = cvx.Variable(NUM_TASK)
+
+    tou_rho_um = np.ones((NUM_TASK, NUM_UAV)) * 1
+    tou_f_um = np.ones((NUM_TASK, NUM_UAV)) * 1
 
     FU = k
     FB = 0
-    omega1 = OMEGA
+
     for b in range(NUM_BUS):
         FB+=buses_original[b].cpu
 
@@ -193,7 +283,6 @@ def proposed_algorithm(k=FU, OMEGA=omega1):
 
                     # task m 처리를 위해 UAV -> bus b로 데이터를 보내는 데 필요한 에너지(e_tx) 계산 : 식(10)
 
-
                     e_tx_cost += rho_bm[m,b] * P_ub[u][b] * sm[m] / R_ub[u][b]
 
                     # bus b가 task m 처리를 위해 걸리는 시간 (t~_bm) 계산 : 식(21)
@@ -206,6 +295,7 @@ def proposed_algorithm(k=FU, OMEGA=omega1):
 
                 # UAV가 task m 처리를 위해 필요한 에너지 (e~_um) 계산 : 식(16)
                 e_um_cost = epsilon_u * cm[m] * (( rho_um[m,u] * f_u_k[m,u]**2 + rho_um_k[m,u] * fum[m,u]**2 )) + ( 0.5 * tou_rho_um[m,u] * (rho_um[m,u] - rho_um_k[m,u])**2 ) + ( 0.5 * tou_f_um[m,u] * (fum[m,u] - f_u_k[m,u])**2 )
+
 
             P2_time_cost += omega1 * mum[m]
 
@@ -723,6 +813,7 @@ def proposed_algorithm2(k=FU, distance=MAX_DISTANCE):
     for i in range(NUM_UAV):
         for j in range(NUM_BUS):
             Distance[i][j] = math.dist((uavs_original[0].x, uavs_original[0].y, uavs_original[0].z),(bus_simul[j].x, bus_simul[j].y, 0))
+            buses_original[j].distance = round(Distance[i][j])
             #Distance[i][j] = random.randint(distance-50, distance)
 
             # 전송률 계산 (Shannon Capacity 공식 사용)
@@ -730,7 +821,7 @@ def proposed_algorithm2(k=FU, distance=MAX_DISTANCE):
             R_ub[i][j] = W_ub[i][j] * math.log2(1 + SNR) / 1E9  # Gbps
 
             # 결과 출력
-            print("BUS ID:", j, "위치:", (buses_original[j].x, buses_original[j].y), "거리 :", Distance[i][j], "m ", " 전송률 :", R_ub[i][j], "Gbps")
+            print("BUS ID:", j, "CPU:", buses_original[j].cpu, "위치:", (buses_original[j].x, buses_original[j].y), "거리 :", Distance[i][j], "m ", " 전송률 :", R_ub[i][j], "Gbps")
 
     rho_bm = cvx.Variable([NUM_TASK, NUM_BUS], pos=True)
     fbm = cvx.Variable([NUM_TASK, NUM_BUS])
@@ -1193,4 +1284,3 @@ def draw_map(X, Y, buses_original):
     plt.show()
     plt.savefig("./graphs/map")
     plt.clf()
-
