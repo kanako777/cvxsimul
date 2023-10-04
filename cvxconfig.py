@@ -6,17 +6,17 @@ CPU_MAX = 15
 FU_MAX = 30
 FB_MAX = 30
 TASK_SIZE_MAX = 100
-DELAY_MIN = 1
-DELAY_MAX = 2
+DELAY_MIN = 2
+DELAY_MAX = 5
 MAX_BUS = 30
-NUM_BUS = 3 # 운행하는 버스의 대수(버스별로 자기 노선(path)을 가짐
+NUM_BUS = 20 # 운행하는 버스의 대수(버스별로 자기 노선(path)을 가짐
 NUM_UAV = 1  # UAV의 개수
 NUM_TASK = 10
 FU = 3
 FB = 9
-BANDWIDTH = 1*10**6
+BANDWIDTH = 2*10**6
 LOOP_COUNT = 5
-MAX_DISTANCE = 1000
+MAX_DISTANCE = 200
 
 NUM_PATH = 20  # 버스 운행경로별로 지나는 정류장(지점)의 개수
 MAP_SIZE = 1000  # MAP크기
@@ -26,11 +26,11 @@ omega2 = 1
 epsilon_u = 0.1
 lamda = 0.5
 
-X, Y, Z = 500, 500, 100
+X, Y, Z = 550, 400, 100
 BUS_POS = [100, 200, 300, 400, 500, 600, 700, 800, 900]
 
 Distance = [[0 for j in range(MAX_BUS)] for i in range(NUM_UAV)]
-P_ub = [[1 for j in range(MAX_BUS)] for i in range(NUM_UAV)] # 전송 파워 (W)
+P_ub = [[2 for j in range(MAX_BUS)] for i in range(NUM_UAV)] # 전송 파워 (W)
 R_ub = [[1 for j in range(MAX_BUS)] for i in range(NUM_UAV)]
 W_ub = [[BANDWIDTH for j in range(MAX_BUS)] for i in range(NUM_UAV)] # 대역폭 (Hz)
 
