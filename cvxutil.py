@@ -9,8 +9,6 @@ from copy import deepcopy
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.font_manager
-import cmocean.cm as cmo
-import seaborn as sns
 import itertools
 from cvxpy import *
 from cvxconfig import *
@@ -388,41 +386,69 @@ def uav_only_algorithm(k=FU, distance=MAX_DISTANCE):
     FU = k
     FB = 0
 
-    for b in range(NUM_BUS):
-        FB += bus_simul[b].cpu
+    t_um = [0 for _ in range(NUM_TASK)]
+
+    rho_um_k = np.ones((NUM_TASK, NUM_UAV)) * 1 / (NUM_UAV)
+    f_u_k = np.ones((NUM_TASK, NUM_UAV)) * FU / NUM_TASK
+
+    mum_k = np.ones(NUM_TASK)
+
+    for m in range(NUM_TASK):
+        for u in range(NUM_UAV):
+            t_um[m] += rho_um_k[m, u] * cm[m] / f_u_k[m, u]
+
+        mum_k[m] = mum_k[m] * t_um[m]
 
     FU = k
     loop = 1
 
     while (loop <= LOOP_COUNT):
 
-        e_um_cost = 0
-        t_um_cost = 0
+        e_um_cost = [0 for _ in range(NUM_TASK)]
+        t_um_cost = [0 for _ in range(NUM_TASK)]
 
         P2_energy_cost = 0
         P2_time_cost = 0
 
         for m in range(NUM_TASK):
-
             for u in range(NUM_UAV):
 
                 # UAV가 task m 처리를 위해 걸리는 시간 (t~_um) 계산 : 식(19)
-                t_um_cost += cm[m] * inv_pos(fum[m, u])
+                t_um_cost[m] = cm[m] * (0.5 * (
+                            power(rho_um[m, u] + inv_pos(fum[m, u]), 2) - power(rho_um_k[m, u], 2) - power(
+                        inv_pos(f_u_k[m, u]), 2) - (rho_um_k[m, u] * (rho_um[m, u] - rho_um_k[m, u])) + power(
+                        inv_pos(f_u_k[m, u]), 3) * (inv_pos(fum[m, u]) - inv_pos(f_u_k[m, u]))))
 
                 # UAV가 task m 처리를 위해 필요한 에너지 (e~_um) 계산 : 식(16)
-                e_um_cost += epsilon_u * cm[m] * power(fum[m, u],2)
+                e_um_cost[m] = epsilon_u * cm[m] * (
+                (rho_um[m, u] * f_u_k[m, u] ** 2 + rho_um_k[m, u] * fum[m, u] ** 2)) + (
+                                        0.5 * tou_rho_um[m, u] * (rho_um[m, u] - rho_um_k[m, u]) ** 2) + (
+                                        0.5 * tou_f_um[m, u] * (fum[m, u] - f_u_k[m, u]) ** 2)
 
-            #P2_time_cost += omega1 * t_um_cost
-            #P2_energy_cost += omega2 * e_um_cost
+            P2_time_cost += omega1 * mum[m]
+            P2_energy_cost += omega2 * (e_um_cost[m])
 
-        P2 = omega1 * t_um_cost + omega2 * e_um_cost
+        P2 = P2_time_cost + P2_energy_cost
+
         obj = cvx.Minimize(P2)
+
         constraints = \
             [0 <= fum, cvxpy.sum(fum) <= FU] + \
-            [t_um_cost <= DELAY_MAX]
+            [0 <= fbm, fbm <=0] + \
+            [1 <= rho_um, rho_um <= 1] + \
+            [0 <= rho_bm, rho_bm <= 0]
+
+        for m in range(NUM_TASK):
+            constraints += [0 <= mum[m], mum[m] <= dm[m]]
+            constraints += [mum[m] >= t_um_cost[m]]
 
         prob = cvx.Problem(obj, constraints)
         result = prob.solve()
+
+        rho_um_k = lamda * rho_um.value + (1 - lamda) * rho_um_k
+        f_u_k = lamda * fum.value + (1 - lamda) * f_u_k
+        mum_k = lamda * mum.value + (1 - lamda) * mum_k
+
 
         if loop % 10 == -1:
         #if 1:
@@ -435,7 +461,8 @@ def uav_only_algorithm(k=FU, distance=MAX_DISTANCE):
 
         loop += 1
 
-    return result, fum, t_um_cost
+    #return result, fum, t_um_cost
+    return result, rho_um, rho_bm, fum, fbm, mum, NUM_BUS, e_um_cost
 
 def uav_only_algorithm2(k=FU, uav_index=0, distance=MAX_DISTANCE):
 
@@ -570,21 +597,20 @@ def bus_only_algorithm(k=FU, distance=MAX_DISTANCE):
     for b in range(NUM_BUS):
         FB += bus_simul[b].cpu
 
-    t_um = 0
-    t_bm = 0
-    t_tx = 0
+    t_bm = [0 for _ in range(NUM_TASK)]
+    t_tx = [0 for _ in range(NUM_TASK)]
 
-    rho_bm_k = np.ones((NUM_TASK, NUM_BUS)) * 1 / (NUM_UAV + NUM_BUS)
+    rho_bm_k = np.ones((NUM_TASK, NUM_BUS)) * 1 / (NUM_BUS)
     f_b_k = np.ones((NUM_TASK, NUM_BUS)) * FB / NUM_BUS / NUM_TASK
     mum_k = np.ones(NUM_TASK)
 
     for m in range(NUM_TASK):
         for u in range(NUM_UAV):
             for b in range(NUM_BUS):
-                t_bm += rho_bm_k[m, b] * cm[m] / f_b_k[m, b]
-                t_tx += rho_bm_k[m, b] * sm[m] / R_ub[u][b]
+                t_bm[m] += rho_bm_k[m, b] * cm[m] / f_b_k[m, b]
+                t_tx[m] += rho_bm_k[m, b] * sm[m] / R_ub[u][b]
 
-    mum_k *= (t_bm + t_tx)
+        mum_k[m] = mum_k[m] * (t_bm[m] + t_tx[m])
 
     loop = 1
 
@@ -593,12 +619,8 @@ def bus_only_algorithm(k=FU, distance=MAX_DISTANCE):
         P2_energy_cost = 0
         P2_time_cost = 0
 
-        e_um_cost = 0
-        e_tx_cost = 0
-
-        t_um_cost = 0
-        t_tx_cost = 0
-        t_bm_cost = 0
+        e_tx_cost = [0 for _ in range(NUM_TASK)]
+        t_bm_cost = [0 for _ in range(NUM_TASK)]
 
         t_bus_cost = [[0 for _ in range(NUM_BUS)] for _ in range(NUM_TASK)]
 
@@ -613,7 +635,7 @@ def bus_only_algorithm(k=FU, distance=MAX_DISTANCE):
                     #t_tx_cost += rho_bm[m,b] * sm[m] / R_ub[u][b]
 
                     # task m 처리를 위해 UAV -> bus b로 데이터를 보내는 데 필요한 에너지(e_tx) 계산 : 식(10)
-                    e_tx_cost += rho_bm[m,b] * P_ub[u][b] * sm[m] / R_ub[u][b]
+                    e_tx_cost[m] += rho_bm[m,b] * P_ub[u][b] * sm[m] / R_ub[u][b]
 
                     # bus b가 task m 처리를 위해 걸리는 시간 (t~_bm) 계산 : 식(21)
                     #t_bm_cost += cm[m] * (0.5 * ( power(rho_bm[m, u],2) + power(inv_pos(fbm[m, u]),2) - power(rho_bm_k[m, b],2) - power(inv_pos(f_b_k[m, b]),2) - (rho_bm_k[m, b] * (rho_bm[m, u] - rho_bm_k[m, b])) + (power(inv_pos(f_b_k[m, b]),3) * (inv_pos(fbm[m, u]) - inv_pos(f_b_k[m, b])))))
@@ -627,14 +649,16 @@ def bus_only_algorithm(k=FU, distance=MAX_DISTANCE):
                     ####### END (for_b) ###########
 
             P2_time_cost += omega1 * mum[m]
+            P2_energy_cost += omega2 * (e_tx_cost[m])
 
-        P2_energy_cost = omega2 * (e_tx_cost)
         P2 = P2_time_cost + P2_energy_cost
 
         obj = cvx.Minimize(P2)
         constraints = \
+            [0 <= fum, fum <= 0] + \
             [0 <= fbm] + \
             [cvxpy.sum(rho_bm, axis=1, keepdims=True) == 1] + \
+            [0 <= rho_um, rho_um <= 0] + \
             [0 <= rho_bm, rho_bm <= 1]
 
         for b in range(NUM_BUS):
@@ -655,7 +679,8 @@ def bus_only_algorithm(k=FU, distance=MAX_DISTANCE):
 
         loop += 1
 
-    return result, rho_bm, fbm, mum
+    #return result, rho_bm, fbm, mum
+    return result, rho_um, rho_bm, fum, fbm, mum
 
 def fixed_algorithm(k=FU, distance=MAX_DISTANCE):
 
@@ -701,51 +726,58 @@ def fixed_algorithm(k=FU, distance=MAX_DISTANCE):
     FU = k
     FB = 0
 
-    t_um = 0
-    t_bm = 0
-    t_tx = 0
-
     for b in range(NUM_BUS):
         FB += bus_simul[b].cpu
+
+    t_um = [0 for _ in range(NUM_TASK)]
+    t_bm = [0 for _ in range(NUM_TASK)]
+    t_tx = [0 for _ in range(NUM_TASK)]
 
     rho_um_k = np.ones((NUM_TASK, NUM_UAV)) * 1 / (NUM_UAV + NUM_BUS)
     rho_bm_k = np.ones((NUM_TASK, NUM_BUS)) * 1 / (NUM_UAV + NUM_BUS)
     f_u_k = np.ones((NUM_TASK, NUM_UAV)) * FU / NUM_TASK
     f_b_k = np.ones((NUM_TASK, NUM_BUS)) * FB / NUM_BUS / NUM_TASK
-    mum_k = DELAY_MAX
+
+    mum_k = np.ones(NUM_TASK)
+
+    for m in range(NUM_TASK):
+        for u in range(NUM_UAV):
+            t_um[m] += rho_um_k[m, u] * cm[m] / f_u_k[m, u]
+
+            for b in range(NUM_BUS):
+                t_bm[m] += rho_bm_k[m, b] * cm[m] / f_b_k[m, b]
+                t_tx[m] += rho_bm_k[m, b] * sm[m] / R_ub[u][b]
+
+        if t_um[m] > (t_bm[m] + t_tx[m]):
+            mum_k[m] = mum_k[m] * t_um[m]
+        else:
+            mum_k[m] = mum_k[m] * (t_bm[m] + t_tx[m])
 
     loop = 1
 
-    while (loop<=LOOP_COUNT) :
+    while (loop <= LOOP_COUNT):
 
         P2_energy_cost = 0
         P2_time_cost = 0
 
-        e_um_cost = 0
-        e_tx_cost = 0
-
+        e_um_cost = [0 for _ in range(NUM_TASK)]
+        e_tx_cost = [0 for _ in range(NUM_TASK)]
         t_um_cost = [0 for _ in range(NUM_TASK)]
         t_bm_cost = [0 for _ in range(NUM_TASK)]
-
-        # t_um_cost = 0
-        # t_bm_cost = 0
-        t_tx_cost = 0
 
         t_bus_cost = [[0 for _ in range(NUM_BUS)] for _ in range(NUM_TASK)]
 
         for m in range(NUM_TASK):
             for u in range(NUM_UAV):
                 for b in range(NUM_BUS):
-
                     # task m 처리를 위해 UAV -> bus b로 데이터를 보내는 데 걸리는 시간 (t_tx) 계산 : 식(9)
-                    #t_tx_cost += rho_bm[m,b] * sm[m] / R_ub[u][b]
+                    # t_tx_cost = rho_bm[m,b] * sm[m] / R_ub[u][b]
 
                     # task m 처리를 위해 UAV -> bus b로 데이터를 보내는 데 필요한 에너지(e_tx) 계산 : 식(10)
-                    e_tx_cost += rho_bm[m,b] * P_ub[u][b] * sm[m] / R_ub[u][b]
+                    e_tx_cost[m] += rho_bm[m, b] * P_ub[u][b] * sm[m] / R_ub[u][b]
 
                     # bus b가 task m 처리를 위해 걸리는 시간 (t~_bm) 계산 : 식(21)
-                    #t_bm_cost += cm[m] * (0.5 * ( power(rho_bm[m, u],2) + power(inv_pos(fbm[m, u]),2) - power(rho_bm_k[m, b],2) - power(inv_pos(f_b_k[m, b]),2) - (rho_bm_k[m, b] * (rho_bm[m, u] - rho_bm_k[m, b])) + (power(inv_pos(f_b_k[m, b]),3) * (inv_pos(fbm[m, u]) - inv_pos(f_b_k[m, b])))))
-                    #t_bm_cost += cm[m] * (0.5 * (power( rho_bm[m, b] + inv_pos(fbm[m, b]), 2) - power(rho_bm_k[m, b],2) - power(inv_pos(f_b_k[m, b]),2) - (rho_bm_k[m, b] * (rho_bm[m, b] - rho_bm_k[m, b])) + (power(inv_pos(f_b_k[m, b]),3) * (inv_pos(fbm[m, b]) - inv_pos(f_b_k[m, b])))))
+                    # t_bm_cost = cm[m] * (0.5 * (power( rho_bm[m,b] + inv_pos(fbm[m,b]), 2) - power(rho_bm_k[m, b],2) - power(inv_pos(f_b_k[m, b]),2) - (rho_bm_k[m, b] * (rho_bm[m,b] - rho_bm_k[m, b])) + (power(inv_pos(f_b_k[m, b]),3) * (inv_pos(fbm[m,b]) - inv_pos(f_b_k[m, b])))))
 
                     t_bus_cost[m][b] = rho_bm[m, b] * sm[m] / R_ub[u][b] + cm[m] * (0.5 * (
                                 power(rho_bm[m, b] + inv_pos(fbm[m, b]), 2) - power(rho_bm_k[m, b], 2) - power(
@@ -753,24 +785,30 @@ def fixed_algorithm(k=FU, distance=MAX_DISTANCE):
                                             power(inv_pos(f_b_k[m, b]), 3) * (
                                                 inv_pos(fbm[m, b]) - inv_pos(f_b_k[m, b])))))
 
-
                 # UAV가 task m 처리를 위해 걸리는 시간 (t~_um) 계산 : 식(19)
-                t_um_cost[m]= cm[m] * ( 0.5 * (power(rho_um[m,u] + inv_pos(fum[m,u]),2) - power(rho_um_k[m,u],2) - power(inv_pos(f_u_k[m,u]),2) - ( rho_um_k[m,u] * (rho_um[m, u] - rho_um_k[m,u]) ) + power(inv_pos(f_u_k[m,u]),3) * (inv_pos(fum[m, u]) - inv_pos(f_u_k[m,u]))))
+                t_um_cost[m] = cm[m] * (0.5 * (
+                            power(rho_um[m, u] + inv_pos(fum[m, u]), 2) - power(rho_um_k[m, u], 2) - power(
+                        inv_pos(f_u_k[m, u]), 2) - (rho_um_k[m, u] * (rho_um[m, u] - rho_um_k[m, u])) + power(
+                        inv_pos(f_u_k[m, u]), 3) * (inv_pos(fum[m, u]) - inv_pos(f_u_k[m, u]))))
 
                 # UAV가 task m 처리를 위해 필요한 에너지 (e~_um) 계산 : 식(16)
-                e_um_cost = epsilon_u * cm[m] * (( rho_um[m,u] * f_u_k[m,u]**2 + rho_um_k[m,u] * fum[m,u]**2 )) + ( 0.5 * tou_rho_um[m,u] * (rho_um[m,u] - rho_um_k[m,u])**2 ) + ( 0.5 * tou_f_um[m,u] * (fum[m,u] - f_u_k[m,u])**2 )
+                e_um_cost[m] = epsilon_u * cm[m] * (
+                (rho_um[m, u] * f_u_k[m, u] ** 2 + rho_um_k[m, u] * fum[m, u] ** 2)) + (
+                                           0.5 * tou_rho_um[m, u] * (rho_um[m, u] - rho_um_k[m, u]) ** 2) + (
+                                           0.5 * tou_f_um[m, u] * (fum[m, u] - f_u_k[m, u]) ** 2)
 
             P2_time_cost += omega1 * mum[m]
+            P2_energy_cost += omega2 * (e_um_cost[m] + e_tx_cost[m])
 
-        P2_energy_cost = omega2 * (e_um_cost + e_tx_cost)
         P2 = P2_time_cost + P2_energy_cost
 
         obj = cvx.Minimize(P2)
         constraints = \
             [0 <= fum, cvxpy.sum(fum) <=FU] + \
             [0 <= fbm] + \
-            [rho_um == 0.5] + \
-            [cvxpy.sum(rho_bm, axis=1, keepdims=True) == 0.5]
+            [0.5 <= rho_um, rho_um <= 0.5] + \
+            [cvxpy.sum(rho_bm, axis=1, keepdims=True) == 0.5] + \
+            [0 <= rho_bm, rho_bm <= 1]
 
         for b in range(NUM_BUS):
             bus_fb = buses_original[b].cpu
@@ -844,9 +882,10 @@ def proposed_algorithm2(k=FU, distance=MAX_DISTANCE):
     for b in range(NUM_BUS):
         FB+=bus_simul[b].cpu
 
-    t_um = 0
-    t_bm = 0
-    t_tx = 0
+    t_um = [0 for _ in range(NUM_TASK)]
+    t_bm = [0 for _ in range(NUM_TASK)]
+    t_tx = [0 for _ in range(NUM_TASK)]
+
     rho_um_k = np.ones((NUM_TASK, NUM_UAV)) * 1 / (NUM_UAV + NUM_BUS)
     rho_bm_k = np.ones((NUM_TASK, NUM_BUS)) * 1 / (NUM_UAV + NUM_BUS)
     f_u_k = np.ones((NUM_TASK, NUM_UAV)) * FU / NUM_TASK
@@ -856,15 +895,16 @@ def proposed_algorithm2(k=FU, distance=MAX_DISTANCE):
 
     for m in range(NUM_TASK):
         for u in range(NUM_UAV):
-            for b in range(NUM_BUS):
-                t_um += rho_um_k[m,u] * cm[m] / f_u_k[m,u]
-                t_bm += rho_bm_k[m,b] * cm[m] / f_b_k[m,b]
-                t_tx += rho_bm_k[m,b] * sm[m] / R_ub[u][b]
+            t_um[m] += rho_um_k[m, u] * cm[m] / f_u_k[m, u]
 
-    if t_um > (t_bm + t_tx):
-        mum_k *= t_um
-    else :
-        mum_k *= (t_bm + t_tx)
+            for b in range(NUM_BUS):
+                t_bm[m] += rho_bm_k[m,b] * cm[m] / f_b_k[m,b]
+                t_tx[m] += rho_bm_k[m,b] * sm[m] / R_ub[u][b]
+
+        if t_um[m] > (t_bm[m] + t_tx[m]):
+            mum_k[m] = mum_k[m] * t_um[m]
+        else :
+            mum_k[m] = mum_k[m] * (t_bm[m] + t_tx[m])
 
     loop = 1
 
@@ -873,15 +913,10 @@ def proposed_algorithm2(k=FU, distance=MAX_DISTANCE):
         P2_energy_cost = 0
         P2_time_cost = 0
 
-        e_um_cost = 0
-        e_tx_cost = 0
-
+        e_um_cost = [0 for _ in range(NUM_TASK)]
+        e_tx_cost = [0 for _ in range(NUM_TASK)]
         t_um_cost = [0 for _ in range(NUM_TASK)]
         t_bm_cost = [0 for _ in range(NUM_TASK)]
-
-        #t_um_cost = 0
-        #t_bm_cost = 0
-        t_tx_cost = 0
 
         t_bus_cost = [[0 for _ in range(NUM_BUS)] for _ in range(NUM_TASK)]
 
@@ -892,7 +927,7 @@ def proposed_algorithm2(k=FU, distance=MAX_DISTANCE):
                     #t_tx_cost = rho_bm[m,b] * sm[m] / R_ub[u][b]
 
                     # task m 처리를 위해 UAV -> bus b로 데이터를 보내는 데 필요한 에너지(e_tx) 계산 : 식(10)
-                    e_tx_cost += rho_bm[m,b] * P_ub[u][b] * sm[m] / R_ub[u][b]
+                    e_tx_cost[m] += rho_bm[m,b] * P_ub[u][b] * sm[m] / R_ub[u][b]
 
                     # bus b가 task m 처리를 위해 걸리는 시간 (t~_bm) 계산 : 식(21)
                     #t_bm_cost = cm[m] * (0.5 * (power( rho_bm[m,b] + inv_pos(fbm[m,b]), 2) - power(rho_bm_k[m, b],2) - power(inv_pos(f_b_k[m, b]),2) - (rho_bm_k[m, b] * (rho_bm[m,b] - rho_bm_k[m, b])) + (power(inv_pos(f_b_k[m, b]),3) * (inv_pos(fbm[m,b]) - inv_pos(f_b_k[m, b])))))
@@ -903,11 +938,11 @@ def proposed_algorithm2(k=FU, distance=MAX_DISTANCE):
                 t_um_cost[m]= cm[m] * ( 0.5 * (power(rho_um[m,u] + inv_pos(fum[m,u]),2) - power(rho_um_k[m,u],2) - power(inv_pos(f_u_k[m,u]),2) - ( rho_um_k[m,u] * (rho_um[m, u] - rho_um_k[m,u]) ) + power(inv_pos(f_u_k[m,u]),3) * (inv_pos(fum[m, u]) - inv_pos(f_u_k[m,u]))))
 
                 # UAV가 task m 처리를 위해 필요한 에너지 (e~_um) 계산 : 식(16)
-                e_um_cost = epsilon_u * cm[m] * (( rho_um[m,u] * f_u_k[m,u]**2 + rho_um_k[m,u] * fum[m,u]**2 )) + ( 0.5 * tou_rho_um[m,u] * (rho_um[m,u] - rho_um_k[m,u])**2 ) + ( 0.5 * tou_f_um[m,u] * (fum[m,u] - f_u_k[m,u])**2 )
+                e_um_cost[m] += epsilon_u * cm[m] * (( rho_um[m,u] * f_u_k[m,u]**2 + rho_um_k[m,u] * fum[m,u]**2 )) + ( 0.5 * tou_rho_um[m,u] * (rho_um[m,u] - rho_um_k[m,u])**2 ) + ( 0.5 * tou_f_um[m,u] * (fum[m,u] - f_u_k[m,u])**2 )
 
             P2_time_cost += omega1 * mum[m]
+            P2_energy_cost += omega2 * (e_um_cost[m] + e_tx_cost[m])
 
-        P2_energy_cost = omega2 * (e_um_cost + e_tx_cost)
         P2 = P2_time_cost + P2_energy_cost
 
         obj = cvx.Minimize(P2)
