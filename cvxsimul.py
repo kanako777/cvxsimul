@@ -35,8 +35,10 @@ from mpl_toolkits.mplot3d import Axes3D
 #print("MODE = 4 : omega1를 증가")
 #print("MODE = 5 : UAV가 버스를 찾는 거리를 증가")
 
-MODE = 3
+MODE = 1
 REAL = 1
+lcoa_mode = 1
+simul_time = 3
 
 if MODE == 0:  # UAV와 BUS의 ratio 실험
 
@@ -49,7 +51,7 @@ if MODE == 0:  # UAV와 BUS의 ratio 실험
     make_task2(5, 10, 50, 150)
 
     # result, rho_um, rho_bm, fum, fbm, mum = proposed_algorithm(FU)  # 제안 알고리즘
-    result, rho_um, rho_bm, fum, fbm, mum, num_bus1 = proposed_algorithm2(FU)  # 제안 알고리즘
+    result, rho_um, rho_bm, fum, fbm, mum, num_bus1 = proposed_algorithm2(FU,0, lcoa_mode, simul_time) # 제안 알고리즘
 
     # print(rho_um.value, fum.value, rho_bm.value, fbm.value)
     # print(mum.value)
@@ -111,7 +113,7 @@ if MODE == 0:  # UAV와 BUS의 ratio 실험
 
     f.close()
 
-    # draw_map(X, Y, buses_original)
+    #draw_map(X, Y, buses_original)
 
 if MODE == 1:  # UAV의 CPU를 증가시켜가며 실험
 
@@ -121,9 +123,9 @@ if MODE == 1:  # UAV의 CPU를 증가시켜가며 실험
     for i in range(NUM_UAV):
         uavs_original.append(UAV(i, X, Y, Z))
     make_bus(REAL, NUM_BUS)
-    make_task(3, 10, 50, 150)
+    make_task(3, 10, 50, 100)
 
-    STEP = FU_MAX // 3
+    STEP = FU_MAX // 30
     uav_ratio1 = np.zeros(STEP)
     bus_ratio1 = np.zeros((STEP, NUM_BUS))
     uav_ratio2 = np.zeros(STEP)
@@ -132,45 +134,58 @@ if MODE == 1:  # UAV의 CPU를 증가시켜가며 실험
     delay_cost = np.zeros((4, STEP))
     energy_cost = np.zeros((4, STEP))
 
-    w1 = omega1
-    w2 = omega2
+    w1 = 1
+    w2 = 1
     k_index = 0
 
-    x = np.arange(3, FU_MAX+1, 3)
+    x = np.arange(30, FU_MAX+1, 30)
     marker = itertools.cycle(('+', '2', '.', 'x'))
     plt.style.use(['science', 'ieee', 'no-latex'])
 
-    for k in range(3, FU_MAX+1, 3):
+    for k in range(30, FU_MAX+1, 30):
 
         print("STEP : ", k_index + 1, "UAV CPU : ", k)
 
-        result1, rho_um1, rho_bm1, fum1, fbm1, mum1, num_bus1 = proposed_algorithm2(k)  # 제안 알고리즘
-        system_cost[0][k_index] = round(result1, 3)
-        delay_cost[0][k_index] = round(cvxpy.sum(mum1).value * w1, 3)
-        energy_cost[0][k_index] = round(system_cost[0][k_index] - delay_cost[0][k_index], 3)
+        result1, rho_um1, rho_bm1, fum1, fbm1, mum1, num_bus1 = proposed_algorithm2(k, 0,lcoa_mode, simul_time)  # 제안 알고리즘
 
-        uav_ratio1[k_index] = round(cvxpy.sum(rho_um1).value / NUM_TASK, 3)
-        for b in range(NUM_BUS):
-            bus_ratio1[k_index][b] = round(cvxpy.sum(rho_bm1[:, b:b + 1:1]).value / NUM_TASK, 3)
+        if rho_um1 is None:
+            pass
+        else:
+            system_cost[0][k_index] = round(result1, 3)
+            delay_cost[0][k_index] = round(cvxpy.sum(mum1).value * w1, 3)
+            energy_cost[0][k_index] = round(system_cost[0][k_index] - delay_cost[0][k_index], 3)
+            uav_ratio1[k_index] = round(cvxpy.sum(rho_um1).value / NUM_TASK, 3)
+            for b in range(NUM_BUS):
+                bus_ratio1[k_index][b] = round(cvxpy.sum(rho_bm1[:, b:b + 1:1]).value / NUM_TASK, 3)
 
         result2, rho_um2, rho_bm2, fum2, fbm2, mum2, num_bus2, e_um_cost = uav_only_algorithm(k)  # uav only 알고리즘
-        system_cost[1][k_index] = round(result2, 3)
-        delay_cost[1][k_index] = round(cvxpy.sum(mum2).value * w1, 3)
-        energy_cost[1][k_index] = round(system_cost[1][k_index] - delay_cost[1][k_index], 3)
+
+        if rho_um2 is None:
+            pass
+        else:
+            system_cost[1][k_index] = round(result2, 3)
+            delay_cost[1][k_index] = round(cvxpy.sum(mum2).value * w1, 3)
+            energy_cost[1][k_index] = round(system_cost[1][k_index] - delay_cost[1][k_index], 3)
 
         result3, rho_um3, rho_bm3, fum3, fbm3, mum3 = bus_only_algorithm(k)  # bus only 알고리즘
-        system_cost[2][k_index] = round(result3, 3)
-        delay_cost[2][k_index] = round(cvxpy.sum(mum3).value * w1, 3)
-        energy_cost[2][k_index] = round(system_cost[2][k_index] - delay_cost[2][k_index], 3)
+        if rho_bm3 is None:
+            pass
+        else:
+            system_cost[2][k_index] = round(result3, 3)
+            delay_cost[2][k_index] = round(cvxpy.sum(mum3).value * w1, 3)
+            energy_cost[2][k_index] = round(system_cost[2][k_index] - delay_cost[2][k_index], 3)
 
         result4, rho_um4, rho_bm4, fum4, fbm4, mum4 = fixed_algorithm(k)  # fixed 알고리즘
-        system_cost[3][k_index] = round(result4, 3)
-        delay_cost[3][k_index] = round(cvxpy.sum(mum4).value * w1, 3)
-        energy_cost[3][k_index] = round(system_cost[3][k_index] - delay_cost[3][k_index], 3)
+        if rho_bm4 is None:
+            pass
+        else:
+            system_cost[3][k_index] = round(result4, 3)
+            delay_cost[3][k_index] = round(cvxpy.sum(mum4).value * w1, 3)
+            energy_cost[3][k_index] = round(system_cost[3][k_index] - delay_cost[3][k_index], 3)
+            uav_ratio2[k_index] = round(cvxpy.sum(rho_um4).value / NUM_TASK, 3)
 
-        uav_ratio2[k_index] = round(cvxpy.sum(rho_um4).value / NUM_TASK, 3)
-        for b in range(NUM_BUS):
-            bus_ratio2[k_index][b] = round(cvxpy.sum(rho_bm4[:, b:b + 1:1]).value / NUM_TASK, 3)
+            for b in range(NUM_BUS):
+                bus_ratio2[k_index][b] = round(cvxpy.sum(rho_bm4[:, b:b + 1:1]).value / NUM_TASK, 3)
 
         print(uav_ratio1[k_index])
         print(bus_ratio1[k_index])
@@ -191,6 +206,14 @@ if MODE == 1:  # UAV의 CPU를 증가시켜가며 실험
 
         k_index += 1
 
+    uav_ratio1[uav_ratio1 == 0] = np.nan
+    bus_ratio1[bus_ratio1 == 0] = np.nan
+    uav_ratio2[uav_ratio2 == 0] = np.nan
+    bus_ratio2[bus_ratio2 == 0] = np.nan
+    system_cost[system_cost == 0] = np.nan
+    delay_cost[delay_cost == 0] = np.nan
+    energy_cost[energy_cost == 0] = np.nan
+
     plt.plot(x, system_cost[0], marker=next(marker), label="Proposed")
     plt.plot(x, system_cost[1], marker=next(marker), label="LC")
     plt.plot(x, system_cost[2], marker=next(marker), label="FO")
@@ -208,7 +231,7 @@ if MODE == 1:  # UAV의 CPU를 증가시켜가며 실험
     marker = itertools.cycle(('+', '2', '.', 'x'))
     plt.style.use(['ieee', 'std-colors', 'no-latex'])
 
-    width = 0.5
+    width = 0.25
     plt.bar(x - 0.5, delay_cost[0], width, label='Proposed-Delay cost')
     plt.bar(x - 0.5, energy_cost[0], width, bottom=delay_cost[0], label='Proposed-Energy cost')
     plt.bar(x, delay_cost[1], width, label='LC-Delay cost')
@@ -278,7 +301,7 @@ if MODE == 2:  # TASK의 data size를 증가시켜가며 테스트
 
     make_bus(REAL, NUM_BUS)
     NUM_BUS = count_bus()
-    cal_distance()
+    #cal_distance()
 
     buses_original[0].cpu = 15
     buses_original[1].x = 850
@@ -413,7 +436,7 @@ if MODE == 3:  # BUS 1대의 CPU를 증가시켜가며 실험
         uavs_original.append(UAV(i, X, Y, Z))
     make_bus(REAL, NUM_BUS, BUS_SAME_CPU, BUS_SAME_CPU)
     NUM_BUS = count_bus()
-    cal_distance()
+    #cal_distance()
 
     make_task(3, 10, 50, 100)
 
@@ -564,7 +587,7 @@ if MODE == 4:  # omega1를 증가시켜가며 실험
         uavs_original.append(UAV(i, X, Y, Z))
     make_bus(REAL, NUM_BUS)
     NUM_BUS = count_bus()
-    cal_distance()
+    #cal_distance()
 
     make_task(5, 10, 100, 150)
 
@@ -614,66 +637,56 @@ if MODE == 4:  # omega1를 증가시켜가며 실험
 
 if MODE == 5:  # UAv가 버스를 찾는 거리를 증가시키면서 시뮬레이션
 
+    simul_time = 2
+
     for i in range(NUM_UAV):
-        uavs_original.append(UAV(i, 0, 0, Z))
-    SIMUL_TIME = 9
-    # make_bus(REAL, NUM_BUS)
-    make_task(5, 15, 50, 150)
+        uavs_original.append(UAV(i, X, Y, Z))
 
-    system_cost = np.zeros((SIMUL_TIME, NUM_BUS))
-    uav_ratio = np.zeros((SIMUL_TIME, NUM_BUS))
-    bus_ratio = np.zeros((SIMUL_TIME, NUM_BUS, NUM_BUS))
+    make_bus(REAL, NUM_BUS)
+    make_task(3, 10, 50, 100)
 
-    for p in range(NUM_BUS):
+    system_cost = np.zeros(SIMUL_TIME)
+    uav_ratio = np.zeros(SIMUL_TIME)
+    bus_ratio = np.zeros(SIMUL_TIME)
 
-        make_bus(REAL, 1)
+    for k in range(SIMUL_TIME):
 
-        for k in range(SIMUL_TIME):
+        print("STEP : ", k + 1)
 
-            print("버스대수 : ", p + 1, "STEP : ", k + 1)
+        distance = MAX_DISTANCE + k*25
 
-            numbus = len(buses_original)
-            for b in range(numbus):
-                buses_original[b].x = k * 50 + 50
-                buses_original[b].y = 0
+        result1, rho_um1, rho_bm1, fum1, fbm1, mum1, num_bus1 = proposed_algorithm2(FU,0,1, simul_time, distance)  # 제안 알고리즘
 
-            cal_distance()
+        uav_ratio[k] = round(cvxpy.sum(rho_um1).value / NUM_TASK, 3)
+        bus_ratio[k] = round(cvxpy.sum(rho_bm1).value / NUM_TASK, 3)
+        system_cost[k] = round(result1, 3)
 
-            result1, rho_um1, rho_bm1, fum1, fbm1, mum1, num_bus1 = proposed_algorithm2(FU)  # 제안 알고리즘
-            uav_ratio[k][p] = round(cvxpy.sum(rho_um1).value / NUM_TASK, 3)
+        print("System Cost : ", system_cost[k])
+        print("UAV Ratio : ", uav_ratio[k])
+        print("Bus Ratio : ", bus_ratio[k])
 
-            for b in range(NUM_BUS):
-                bus_ratio[k][p][b] = round(cvxpy.sum(rho_bm1[:, b:b + 1:1]).value / NUM_TASK, 3)
-            system_cost[k][p] = round(result1, 3)
+        k += 1
 
-            print("System Cost : ", system_cost[k][p])
-            print("UAV Ratio : ", uav_ratio[k][p])
-            print("Bus Ratio : ", bus_ratio[k][p])
+    uav_ratio[uav_ratio == 0] = np.nan
+    bus_ratio[bus_ratio == 0] = np.nan
+    system_cost[system_cost == 0] = np.nan
 
-            k += 1
-
-        p += 1
-
-    x = np.arange(1, SIMUL_TIME + 1, 1) * 100
     marker = itertools.cycle(('+', '2', '.', 'x', '*'))
     plt.style.use(['science', 'ieee', 'no-latex'])
-
-    b1 = np.sum(bus_ratio.transpose(), axis=0)
-    u1 = uav_ratio.transpose()
-
     plt.xlabel(r'$L_{CoA}$ (m)')
     plt.ylabel('Optimal offloading ratio, ' + r'$\rho_{u,m}$')
 
-    for p in range(NUM_BUS):
-        plt.plot(x, u1[p], marker=next(marker), label="B=%d" % (p + 1))
+    x = np.arange(MAX_DISTANCE, MAX_DISTANCE+SIMUL_TIME*25, 25) * 2
+    plt.plot(x, bus_ratio, marker=next(marker), label="Bus ratio")
+    plt.plot(x, system_cost, marker=next(marker), label="System cost")
 
     plt.xticks(x)
-    plt.yscale('log')
     plt.legend(loc='best')
     plt.legend(frameon=True)
     plt.tight_layout()
     plt.savefig("./graphs/" + "DISTANCE_RATIO")
     plt.clf()
+
 
 if MODE == 10:  # 버스를 이동하면서 시뮬레이션
 

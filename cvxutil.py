@@ -1,3 +1,4 @@
+import seaborn as sns
 import numpy as np
 import cvxpy as cvx
 import time
@@ -59,22 +60,66 @@ class BUS:
         self.x = self.location[0]
         self.y = self.location[1]
 
+class BUS2:
+    def __init__(self, id, x, y, t, cpu):
+        self.id = id
+        self.path_index = 0
+        self.x = x
+        self.y = y
+        self.path = [[x, y, t]]
+        self.cpu = cpu
+        self.distance = 0
+        self.timetable = np.zeros(12)
+        self.timetable[t] = 1
+
+    def move(self):
+        self.path_index += 1
+        if self.path_index == len(self.path):
+            self.path_index = 0
+        self.location = self.path[self.path_index]
+        self.x = self.location[0]
+        self.y = self.location[1]
+
 def make_bus(real, num_bus=NUM_BUS, CPU_MIN=CPU_MIN, CPU_MAX=CPU_MAX):
 
     bus_count = 0
+    bus_count2 = 0
+    bus_num = MAX_BUS
     paths = []
 
     if real:
-        simul_time = 10
-        with open("./buspos.txt", "r") as fp:
+        simul_time = 12
+        with open("./realbus2.txt", "r") as fp:
             t = 0
             while t < simul_time:
                 path = []
                 line = fp.readline()
-                poslst = line.split('/')[:-1]
+                poslst = line.split('/')
                 for pos in poslst:
-                    x, y = np.array(pos.split(','), dtype=np.float32)
+
+                    bus_route, bus_id, xx, yy = pos.split(',')
+                    x = float(xx)
+                    y = float(yy)
+
+                    find = 0
+
+                    for b in range(bus_count2):
+                        if bus_id == buses_original2[b].id:
+                            find = 1
+                            find_number = b
+
+                    if find==0:
+                        buses_original2.append(BUS2(bus_id, x, y, t, random.randint(CPU_MIN,CPU_MAX)))
+                        bus_count2 += 1
+                    else:
+                        if buses_original2[find_number].timetable[t]==0:
+                            buses_original2[find_number].path.append([x, y, t])
+                            buses_original2[find_number].timetable[t]=1
+
                     path.append((x, y))
+
+                while len(path) < bus_num:
+                    path.append((-1000, -1000))
 
                 paths.append(path)
                 t += 1
@@ -98,7 +143,10 @@ def make_bus(real, num_bus=NUM_BUS, CPU_MIN=CPU_MIN, CPU_MAX=CPU_MAX):
     for i in range(num_bus):
         buses_original.append(BUS(i, paths[i], random.randint(CPU_MIN,CPU_MAX)))
         bus_count += 1
-        print("BUS ID:", i+1, "CPU:", buses_original[i].cpu, "위치:", (buses_original[i].x, buses_original[i].y))
+
+    for i in range(bus_count2):
+        print("BUS ID:", buses_original2[i].id, "CPU:", buses_original2[i].cpu, "위치:", (buses_original2[i].x, buses_original2[i].y))
+
 
 def make_bus2(real, num_bus=NUM_BUS, mode=1):
 
@@ -339,8 +387,11 @@ def proposed_algorithm(k=FU, o1=omega1, o2=omega2, numbus=NUM_BUS):
     return result, rho_um, rho_bm, fum, fbm, mum, NUM_BUS
 
 
-def proposed_algorithm2(k=FU, fb=0, lcoa_mode=0, distance=MAX_DISTANCE):
-    MAX_BUS = len(buses_original)
+def proposed_algorithm2(k=FU, fb=0, lcoa_mode=1, simul_time=0, distance=MAX_DISTANCE):
+
+    time_t = simul_time
+
+    MAX_BUS = len(buses_original2)
     MAX_DISTANCE = distance
     DMAT = [[0 for j in range(MAX_BUS)] for i in range(NUM_UAV)]
     bus_simul = []
@@ -348,20 +399,26 @@ def proposed_algorithm2(k=FU, fb=0, lcoa_mode=0, distance=MAX_DISTANCE):
     for i in range(NUM_UAV):
         for j in range(MAX_BUS):
 
-            abs_x = abs(uavs_original[0].x - buses_original[j].x)
-            abs_y = abs(uavs_original[0].y - buses_original[j].y)
-            DMAT[i][j] = math.dist((uavs_original[0].x, uavs_original[0].y, uavs_original[0].z),
-                                   (buses_original[j].x, buses_original[j].y, 0))
+            if buses_original2[j].timetable[time_t] ==1:
 
-            if lcoa_mode:
-                if (abs_x.value <= MAX_DISTANCE and abs_y.value <= MAX_DISTANCE):
-                    bus_simul.append(buses_original[j])
+                abs_x = abs(uavs_original[0].x - buses_original2[j].x)
+                abs_y = abs(uavs_original[0].y - buses_original2[j].y)
+                DMAT[i][j] = math.dist((uavs_original[0].x, uavs_original[0].y, uavs_original[0].z),
+                                       (buses_original2[j].x, buses_original2[j].y, 0))
 
-            else:
-                if DMAT[i][j] <= MAX_DISTANCE:
-                    bus_simul.append(buses_original[j])
+                if lcoa_mode:
+                    if (abs_x.value <= MAX_LCOA and abs_y.value <= MAX_LCOA):
+                        bus_simul.append(buses_original2[j])
+
+                else:
+                    if DMAT[i][j] <= MAX_DISTANCE:
+                        bus_simul.append(buses_original2[j])
 
     NUM_BUS = len(bus_simul)
+
+    if NUM_BUS ==0:
+        print("UAV 주위에 버스가 없음")
+        return None, None, None, None, None, None, None
 
     if fb:
         bus_simul[0].cpu = fb
@@ -383,7 +440,7 @@ def proposed_algorithm2(k=FU, fb=0, lcoa_mode=0, distance=MAX_DISTANCE):
             R_ub[i][j] = W_ub[i][j] * math.log2(1 + SNR) / 1E9  # Gbps
 
             # 결과 출력
-            print("BUS ID:", j+1, ", CPU:", bus_simul[j].cpu, ", 위치:", (bus_simul[j].x, bus_simul[j].y),
+            print("BUS ID:", bus_simul[j].id, ", CPU:", bus_simul[j].cpu, ", 위치:", (bus_simul[j].x, bus_simul[j].y),
                   ", 거리 :", round(Distance[i][j]), "m", ", 전송률 :", round(R_ub[i][j] * 1000, 2), "Mbps")
 
     rho_bm = cvx.Variable([NUM_TASK, NUM_BUS], pos=True)
@@ -489,6 +546,10 @@ def proposed_algorithm2(k=FU, fb=0, lcoa_mode=0, distance=MAX_DISTANCE):
         prob = cvx.Problem(obj, constraints)
         result = prob.solve(solver=SCS)
 
+        if (rho_um.value is None):
+            print("최적해를 구할 수 없음")
+            return None, None, None, None, None, None, None
+
         rho_um_k = lamda * rho_um.value + (1 - lamda) * rho_um_k
         rho_bm_k = lamda * rho_bm.value + (1 - lamda) * rho_bm_k
         f_u_k = lamda * fum.value + (1 - lamda) * f_u_k
@@ -515,7 +576,7 @@ def uav_only_algorithm(k=FU, lcoa_mode=0, distance=MAX_DISTANCE):
             DMAT[i][j] = math.dist((uavs_original[0].x, uavs_original[0].y, uavs_original[0].z), (buses_original[j].x, buses_original[j].y, 0))
 
             if lcoa_mode:
-                if (abs_x.value <= MAX_DISTANCE and abs_y.value <= MAX_DISTANCE):
+                if (abs_x.value <= MAX_LCOA and abs_y.value <= MAX_LCOA):
                     bus_simul.append(buses_original[j])
 
             else:
@@ -599,6 +660,10 @@ def uav_only_algorithm(k=FU, lcoa_mode=0, distance=MAX_DISTANCE):
         prob = cvx.Problem(obj, constraints)
         result = prob.solve()
 
+        if (rho_um.value is None):
+            print("최적해를 구할 수 없음")
+            return None, None, None, None, None, None, None, None
+
         rho_um_k = lamda * rho_um.value + (1 - lamda) * rho_um_k
         f_u_k = lamda * fum.value + (1 - lamda) * f_u_k
         mum_k = lamda * mum.value + (1 - lamda) * mum_k
@@ -623,7 +688,7 @@ def bus_only_algorithm(k=FU, lcoa_mode=0, distance=MAX_DISTANCE):
                                    (buses_original[j].x, buses_original[j].y, 0))
 
             if lcoa_mode:
-                if (abs_x.value <= MAX_DISTANCE and abs_y.value <= MAX_DISTANCE):
+                if (abs_x.value <= MAX_LCOA and abs_y.value <= MAX_LCOA):
                     bus_simul.append(buses_original[j])
 
             else:
@@ -720,6 +785,10 @@ def bus_only_algorithm(k=FU, lcoa_mode=0, distance=MAX_DISTANCE):
         prob = cvx.Problem(obj, constraints)
         result = prob.solve()
 
+        if (rho_bm.value is None):
+            print("최적해를 구할 수 없음")
+            return None, None, None, None, None, None
+
         rho_bm_k = lamda * rho_bm.value + (1 - lamda) * rho_bm_k
         f_b_k = lamda * fbm.value + (1 - lamda) * f_b_k
         mum_k = lamda * mum.value + (1 - lamda) * mum_k
@@ -745,7 +814,7 @@ def fixed_algorithm(k=FU, lcoa_mode=0, distance=MAX_DISTANCE):
                                    (buses_original[j].x, buses_original[j].y, 0))
 
             if lcoa_mode:
-                if (abs_x.value <= MAX_DISTANCE and abs_y.value <= MAX_DISTANCE):
+                if (abs_x.value <= MAX_LCOA and abs_y.value <= MAX_LCOA):
                     bus_simul.append(buses_original[j])
 
             else:
@@ -870,6 +939,11 @@ def fixed_algorithm(k=FU, lcoa_mode=0, distance=MAX_DISTANCE):
         prob = cvx.Problem(obj, constraints)
         result = prob.solve()
 
+
+        if (rho_um.value is None):
+            print("최적해를 구할 수 없음")
+            return None, None, None, None, None, None
+
         rho_um_k = lamda * rho_um.value + (1 - lamda) * rho_um_k
         rho_bm_k = lamda * rho_bm.value + (1 - lamda) * rho_bm_k
         f_u_k = lamda * fum.value + (1 - lamda) * f_u_k
@@ -950,25 +1024,27 @@ def draw_map(X, Y, buses_original):
 
 
 def count_bus(lcoa_mode=0):
-    MAX_BUS = len(buses_original)
+
+    time_t = 0
+    MAX_BUS = len(buses_original2)
     MAT = [[0 for j in range(MAX_BUS)] for i in range(NUM_UAV)]
     temp = []
 
     for i in range(NUM_UAV):
         for j in range(MAX_BUS):
+            if (buses_original2[j].timetable[time_t]==1):
+                abs_x = abs(uavs_original[0].x - buses_original2[j].x)
+                abs_y = abs(uavs_original[0].y - buses_original2[j].y)
+                MAT[i][j] = math.dist((uavs_original[0].x, uavs_original[0].y, uavs_original[0].z),
+                                       (buses_original2[j].x, buses_original2[j].y, 0))
 
-            abs_x = abs(uavs_original[0].x - buses_original[j].x)
-            abs_y = abs(uavs_original[0].y - buses_original[j].y)
-            MAT[i][j] = math.dist((uavs_original[0].x, uavs_original[0].y, uavs_original[0].z),
-                                   (buses_original[j].x, buses_original[j].y, 0))
+                if lcoa_mode:
+                    if (abs_x.value <= MAX_LCOA and abs_y.value <= MAX_LCOA):
+                        temp.append(buses_original2[j])
 
-            if lcoa_mode:
-                if (abs_x.value <= MAX_DISTANCE and abs_y.value <= MAX_DISTANCE):
-                    temp.append(buses_original[j])
-
-            else:
-                if MAT[i][j] <= MAX_DISTANCE:
-                    temp.append(buses_original[j])
+                else:
+                    if MAT[i][j] <= MAX_DISTANCE:
+                        temp.append(buses_original2[j])
 
     NUM_BUS = len(temp)
     return NUM_BUS

@@ -24,53 +24,58 @@ wgs84_params = {
 # 좌표 변환을 위한 Transformer 생성
 transformer = pyproj.Transformer.from_proj(grs80_params, wgs84_params)
 
-# 윈도우 생성
-window = tk.Tk()
-window.title("버스 위치 표시")
+# GPS 좌표
+lon_c = 127.0361  # 여기에 실제 GPS X 좌표를 넣으세요
+lat_c = 37.5004  # 여기에 실제 GPS Y 좌표를 넣으세요
 
-# 캔버스 생성
-canvas = tk.Canvas(window, width=1000, height=1000)
-canvas.pack()
+min_lon, max_lon = lon_c-0.0055, lon_c+0.0055
+min_lat, max_lat = lat_c-0.005, lat_c+0.005
 
+# 지도를 해당 GPS 좌표로 초기화
+m = folium.Map(
+    max_bounds=True,
+    control_scale=True,
+    location=[lat_c, lon_c],
+    zoom_start=15,
+    min_lat=min_lat,
+    max_lat=max_lat,
+    min_lon=min_lon,
+    max_lon=max_lon,
+)
 
-bus_coordinates = []
+ls = folium.PolyLine(
+    locations=[[min_lat, min_lon], [min_lat, max_lon], [max_lat, max_lon], [max_lat, min_lon], [min_lat, min_lon]], color="blue"
+)
+ls.add_to(m)
 
-# 파일에서 버스 위치 정보 읽기
-with open('buspos.txt', 'r') as file:
+with open('realbus2.txt', 'r') as file:
     lines = file.readlines()
 
+count = 1
+
 for line in lines:
+
+    bus_coordinates = []
     bus_info = line.strip().split('/')
+
     for info in bus_info:
 
-        bus_id, xy = info.split(':')
-        xx, yy = xy.split(',')
+        bus_route, bus_id, xx, yy = info.split(',')
 
         x= float(xx)
         y= float(yy)
         temp_x = (x /500)*0.0055+127.0306
         temp_y = (y /500)*0.005 +37.4954
 
-        bus_coordinates.append((temp_x,temp_y))
-        # 화면에 버스 위치 표시
-        canvas.create_oval(x-3, y-3, x + 3, y + 3, fill='blue')
-        #canvas.create_text(x + 1, y, text=f'Bus {bus_id}')
+        bus_coordinates.append((bus_id, temp_x,temp_y))
 
-# 윈도우 실행
-window.mainloop()
+    fg = folium.FeatureGroup(name="Time:%d" % (count), show=True).add_to(m)
+    for i, (bus_id, busX, busY) in enumerate(bus_coordinates, start=1):
+        folium.Marker([busY, busX], tooltip=f'Bus {bus_id}').add_to(fg)
 
+    count+=1
 
-# GPS 좌표
-lon_c = 127.0361  # 여기에 실제 GPS X 좌표를 넣으세요
-lat_c = 37.5004  # 여기에 실제 GPS Y 좌표를 넣으세요
-
-# 지도를 해당 GPS 좌표로 초기화
-m = folium.Map(location=[lat_c, lon_c], zoom_start=15)
-
-print(bus_coordinates)
-# 버스 위치를 지도에 표시
-for i, (busX, busY) in enumerate(bus_coordinates, start=1):
-    folium.Marker([busY, busX], tooltip=f'Bus {i}').add_to(m)
+folium.LayerControl().add_to(m)
 
 # 지도를 HTML 파일로 저장
 m.save('bus_map.html')

@@ -3,11 +3,11 @@ import numpy as np
 SIMUL_TIME = 10
 CPU_MIN = 9
 CPU_MAX = 15
-FU_MAX = 15
+FU_MAX = 300
 FB_MAX = 30
 TASK_SIZE_MAX = 100
-DELAY_MIN = 2
-DELAY_MAX = 5
+DELAY_MIN = 20
+DELAY_MAX = 50
 MAX_BUS = 30
 NUM_BUS = 20 # 운행하는 버스의 대수(버스별로 자기 노선(path)을 가짐
 NUM_UAV = 1  # UAV의 개수
@@ -16,7 +16,8 @@ FU = 3
 FB = 9
 BANDWIDTH = 2*10**6
 LOOP_COUNT = 5
-MAX_DISTANCE = 200
+MAX_DISTANCE = 250
+MAX_LCOA = 200
 
 NUM_PATH = 20  # 버스 운행경로별로 지나는 정류장(지점)의 개수
 MAP_SIZE = 1000  # MAP크기
@@ -36,6 +37,7 @@ W_ub = [[BANDWIDTH for j in range(MAX_BUS)] for i in range(NUM_UAV)] # 대역폭
 
 uavs_original = []
 buses_original = []
+buses_original2 = []
 bus_simul = []
 
 task_original = []
@@ -45,4 +47,3 @@ dm = np.ones((NUM_TASK, NUM_UAV))
 
 alpha_0 = 10 ** ((-50.0) / 10)  # 1m 참조 거리에서의 수신 파워 (-50dB를 와트로 변환)
 Noise = 10 ** ((-100.0 - 30) / 10)  # 노이즈 파워 (-100dBm를 와트로 변환)
-
