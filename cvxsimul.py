@@ -35,7 +35,7 @@ from mpl_toolkits.mplot3d import Axes3D
 #print("MODE = 4 : omega1를 증가")
 #print("MODE = 5 : UAV가 버스를 찾는 거리를 증가")
 
-MODE = 2
+MODE = 3
 REAL = 1
 
 if MODE == 0:  # UAV와 BUS의 ratio 실험
