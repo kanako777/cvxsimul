@@ -147,6 +147,8 @@ def make_bus(real, num_bus=NUM_BUS, CPU_MIN=CPU_MIN, CPU_MAX=CPU_MAX):
     for i in range(bus_count2):
         print("BUS ID:", buses_original2[i].id, "CPU:", buses_original2[i].cpu, "위치:", (buses_original2[i].x, buses_original2[i].y))
 
+    for i in range(bus_count2):
+        print("BUS ID:", buses_original2[i].id, buses_original2[i].timetable)
 
 def make_bus2(real, num_bus=NUM_BUS, mode=1):
 
@@ -390,11 +392,10 @@ def proposed_algorithm(k=FU, o1=omega1, o2=omega2, numbus=NUM_BUS):
 def proposed_algorithm2(k=FU, fb=0, lcoa_mode=1, simul_time=0, distance=MAX_DISTANCE):
 
     time_t = simul_time
-
+    bus_simul = []
     MAX_BUS = len(buses_original2)
     MAX_DISTANCE = distance
     DMAT = [[0 for j in range(MAX_BUS)] for i in range(NUM_UAV)]
-    bus_simul = []
 
     for i in range(NUM_UAV):
         for j in range(MAX_BUS):
@@ -416,9 +417,21 @@ def proposed_algorithm2(k=FU, fb=0, lcoa_mode=1, simul_time=0, distance=MAX_DIST
 
     NUM_BUS = len(bus_simul)
 
+    # mode=2 실험을 위해서 필요함(삭제하면 안됨)
+    #bus_simul[0].cpu = 15
+    #bus_simul[0].x = 740
+    #bus_simul[0].y = 590
+
+    #bus_simul[1].cpu = 13
+    #bus_simul[1].x = 450
+    #bus_simul[1].y = 450
+
+    #bus_simul[2].cpu = 10
+    #bus_simul[3].cpu = 15
+
     if NUM_BUS ==0:
         print("UAV 주위에 버스가 없음")
-        return None, None, None, None, None, None, None
+        return None, None, None, None, None, None, None, None
 
     if fb:
         bus_simul[0].cpu = fb
@@ -461,7 +474,7 @@ def proposed_algorithm2(k=FU, fb=0, lcoa_mode=1, simul_time=0, distance=MAX_DIST
     f_u_k = np.ones((NUM_TASK, NUM_UAV)) * FU / NUM_TASK
     f_b_k = np.ones((NUM_TASK, NUM_BUS))
     for b in range(NUM_BUS):
-        f_b_k[:,b:b+1:] = bus_simul[b].cpu / NUM_TASK
+        f_b_k[:, b:b + 1:] = bus_simul[b].cpu / NUM_TASK
     mum_k = np.ones(NUM_TASK)
 
     for m in range(NUM_TASK):
@@ -548,7 +561,7 @@ def proposed_algorithm2(k=FU, fb=0, lcoa_mode=1, simul_time=0, distance=MAX_DIST
 
         if (rho_um.value is None):
             print("최적해를 구할 수 없음")
-            return None, None, None, None, None, None, None
+            return None, None, None, None, None, None, None, None
 
         rho_um_k = lamda * rho_um.value + (1 - lamda) * rho_um_k
         rho_bm_k = lamda * rho_bm.value + (1 - lamda) * rho_bm_k
@@ -558,7 +571,7 @@ def proposed_algorithm2(k=FU, fb=0, lcoa_mode=1, simul_time=0, distance=MAX_DIST
 
         loop += 1
 
-    return result, rho_um, rho_bm, fum, fbm, mum, NUM_BUS
+    return bus_simul, result, rho_um, rho_bm, fum, fbm, mum, NUM_BUS
 
 
 def uav_only_algorithm(k=FU, lcoa_mode=0, distance=MAX_DISTANCE):
@@ -1023,28 +1036,30 @@ def draw_map(X, Y, buses_original):
     plt.clf()
 
 
-def count_bus(lcoa_mode=0):
+def count_bus(lcoa_mode=1, simul_time=0):
 
-    time_t = 0
+    time_t = simul_time
     MAX_BUS = len(buses_original2)
-    MAT = [[0 for j in range(MAX_BUS)] for i in range(NUM_UAV)]
-    temp = []
+    DMAT = [[0 for j in range(MAX_BUS)] for i in range(NUM_UAV)]
+    simul = []
 
     for i in range(NUM_UAV):
         for j in range(MAX_BUS):
-            if (buses_original2[j].timetable[time_t]==1):
+
+            if buses_original2[j].timetable[time_t] == 1:
+
                 abs_x = abs(uavs_original[0].x - buses_original2[j].x)
                 abs_y = abs(uavs_original[0].y - buses_original2[j].y)
-                MAT[i][j] = math.dist((uavs_original[0].x, uavs_original[0].y, uavs_original[0].z),
+                DMAT[i][j] = math.dist((uavs_original[0].x, uavs_original[0].y, uavs_original[0].z),
                                        (buses_original2[j].x, buses_original2[j].y, 0))
 
                 if lcoa_mode:
                     if (abs_x.value <= MAX_LCOA and abs_y.value <= MAX_LCOA):
-                        temp.append(buses_original2[j])
+                        simul.append(buses_original2[j])
 
                 else:
-                    if MAT[i][j] <= MAX_DISTANCE:
-                        temp.append(buses_original2[j])
+                    if DMAT[i][j] <= MAX_DISTANCE:
+                        simul.append(buses_original2[j])
 
-    NUM_BUS = len(temp)
+    NUM_BUS = len(simul)
     return NUM_BUS

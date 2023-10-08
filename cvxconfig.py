@@ -3,11 +3,11 @@ import numpy as np
 SIMUL_TIME = 10
 CPU_MIN = 9
 CPU_MAX = 15
-FU_MAX = 300
+FU_MAX = 30
 FB_MAX = 30
 TASK_SIZE_MAX = 100
-DELAY_MIN = 20
-DELAY_MAX = 50
+DELAY_MIN = 2
+DELAY_MAX = 5
 MAX_BUS = 30
 NUM_BUS = 20 # 운행하는 버스의 대수(버스별로 자기 노선(path)을 가짐
 NUM_UAV = 1  # UAV의 개수

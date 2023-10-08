@@ -38,7 +38,7 @@ from mpl_toolkits.mplot3d import Axes3D
 MODE = 1
 REAL = 1
 lcoa_mode = 1
-simul_time = 3
+simul_time = 8
 
 if MODE == 0:  # UAV와 BUS의 ratio 실험
 
@@ -51,7 +51,7 @@ if MODE == 0:  # UAV와 BUS의 ratio 실험
     make_task2(5, 10, 50, 150)
 
     # result, rho_um, rho_bm, fum, fbm, mum = proposed_algorithm(FU)  # 제안 알고리즘
-    result, rho_um, rho_bm, fum, fbm, mum, num_bus1 = proposed_algorithm2(FU,0, lcoa_mode, simul_time) # 제안 알고리즘
+    bus_simul, result, rho_um, rho_bm, fum, fbm, mum, num_bus1 = proposed_algorithm2(FU,0, lcoa_mode, simul_time) # 제안 알고리즘
 
     # print(rho_um.value, fum.value, rho_bm.value, fbm.value)
     # print(mum.value)
@@ -100,7 +100,7 @@ if MODE == 0:  # UAV와 BUS의 ratio 실험
         print("Task" + str(i + 1) + ":", str(sm[i] * 1000) + "Mbits", file=f)
     print("Bus CPU : ", file=f)
     for i in range(NUM_BUS):
-        print("BUS" + str(i + 1) + ":", str(buses_original[i].cpu) + "GHz, 거리:" + str(buses_original[i].distance) + "m",
+        print("BUS" + str(i + 1) + ":", str(bus_simul[i].cpu) + "GHz, 거리:" + str(bus_simul[i].distance) + "m",
               file=f)
 
     print("Task별 UAV 처리비율 : ", rho_um.value, file=f)
@@ -123,9 +123,9 @@ if MODE == 1:  # UAV의 CPU를 증가시켜가며 실험
     for i in range(NUM_UAV):
         uavs_original.append(UAV(i, X, Y, Z))
     make_bus(REAL, NUM_BUS)
-    make_task(3, 10, 50, 100)
+    make_task(5, 10, 50, 150)
 
-    STEP = FU_MAX // 30
+    STEP = FU_MAX // 3
     uav_ratio1 = np.zeros(STEP)
     bus_ratio1 = np.zeros((STEP, NUM_BUS))
     uav_ratio2 = np.zeros(STEP)
@@ -138,15 +138,15 @@ if MODE == 1:  # UAV의 CPU를 증가시켜가며 실험
     w2 = 1
     k_index = 0
 
-    x = np.arange(30, FU_MAX+1, 30)
+    x = np.arange(3, FU_MAX+1, 3)
     marker = itertools.cycle(('+', '2', '.', 'x'))
     plt.style.use(['science', 'ieee', 'no-latex'])
 
-    for k in range(30, FU_MAX+1, 30):
+    for k in range(3, FU_MAX+1, 3):
 
         print("STEP : ", k_index + 1, "UAV CPU : ", k)
 
-        result1, rho_um1, rho_bm1, fum1, fbm1, mum1, num_bus1 = proposed_algorithm2(k, 0,lcoa_mode, simul_time)  # 제안 알고리즘
+        bus_simul, result1, rho_um1, rho_bm1, fum1, fbm1, mum1, num_bus1 = proposed_algorithm2(k, 0,lcoa_mode, simul_time)  # 제안 알고리즘
 
         if rho_um1 is None:
             pass
@@ -300,19 +300,7 @@ if MODE == 2:  # TASK의 data size를 증가시켜가며 테스트
         uavs_original.append(UAV(i, X, Y, Z))
 
     make_bus(REAL, NUM_BUS)
-    NUM_BUS = count_bus()
-    #cal_distance()
-
-    buses_original[0].cpu = 15
-    buses_original[1].x = 850
-    buses_original[1].y = 150
-
-    buses_original[1].cpu = 13
-    buses_original[1].x = 340
-    buses_original[1].y = 400
-
-    buses_original[2].cpu = 15
-    buses_original[3].cpu = 10
+    NUM_BUS = count_bus(lcoa_mode, simul_time)
 
     STEP = 10
     uav_data = np.zeros(STEP)
@@ -329,10 +317,11 @@ if MODE == 2:  # TASK의 data size를 증가시켜가며 테스트
     # plt.style.use(['science', 'ieee', 'no-latex'])
 
     for k in range(1, STEP + 1, 1):
-        make_task(3, 5, 50, 100)
+
+        make_task(5, 10, 50, 150)
         print("STEP : ", k_index + 1)
 
-        result, rho_um, rho_bm, fum, fbm, mum, num_bus = proposed_algorithm2(FU)  # 제안 알고리즘
+        bus_simul, result, rho_um, rho_bm, fum, fbm, mum, num_bus = proposed_algorithm2(FU,0, lcoa_mode, simul_time) # 제안 알고리즘
 
         if k_index == 0:
             uav_data[k_index] = round(cvxpy.sum(cvxpy.multiply(sm, rho_um)).value * 1000,3)
@@ -366,11 +355,11 @@ if MODE == 2:  # TASK의 data size를 증가시켜가며 테스트
 
     plt.plot(x, uav_data, marker=next(marker), label="UAV")
     for b in range(NUM_BUS):
-        plt.plot(x, y1[b], marker=next(marker), label=r'$b_{%d}$' % (b + 1) + " : " + str(round(buses_original[b].cpu)) + " GHz")
+        plt.plot(x, y1[b], marker=next(marker), label=r'$b_{%d}$' % (b + 1) + " : " + str(round(bus_simul[b].cpu)) + " GHz")
 
     plt.xticks(x)
     plt.xlabel('Number of tasks')
-    plt.ylabel('The amount of data processed (Mbits)')
+    plt.ylabel(r'The amount of data processed ($S_m \times \rho$, Mbits)')
     plt.legend(loc='best')
     plt.legend(frameon=True)
     plt.tight_layout()
@@ -380,7 +369,7 @@ if MODE == 2:  # TASK의 data size를 증가시켜가며 테스트
     plt.plot(x, uav_cpu, marker=next(marker), label="UAV")
     for b in range(NUM_BUS):
         plt.plot(x, y2[b], marker=next(marker),
-                 label=r'$b_{%d}$' % (b + 1) + " : " + str(round(buses_original[b].cpu)) + " GHz")
+                 label=r'$b_{%d}$' % (b + 1) + " : " + str(round(bus_simul[b].cpu)) + " GHz")
 
     plt.xticks(x)
     plt.xlabel('Number of tasks')
@@ -393,7 +382,7 @@ if MODE == 2:  # TASK의 data size를 증가시켜가며 테스트
     plt.plot(x, uav_ratio, marker=next(marker), label="UAV")
     for b in range(NUM_BUS):
         plt.plot(x, y3[b], marker=next(marker),
-                 label=r'$b_{%d}$' % (b + 1) + " : " + str(round(buses_original[b].cpu)) + " GHz")
+                 label=r'$b_{%d}$' % (b + 1) + " : " + str(round(bus_simul[b].cpu)) + " GHz")
 
     plt.xticks(x)
     plt.xlabel('Number of tasks')
@@ -406,7 +395,7 @@ if MODE == 2:  # TASK의 data size를 증가시켜가며 테스트
     f = open('./graphs/TASK_SIZE_BIT.txt', 'w')
 
     for b in range(NUM_BUS):
-        print("bus", b + 1, ": ", buses_original[b].distance, "m,", buses_original[b].cpu, " GHz", file=f)
+        print("bus", b + 1, ": ", bus_simul[b].distance, "m,", bus_simul[b].cpu, " GHz", file=f)
 
     print("UAV가 처리한 데이터량 : ", uav_data, file=f)
     print("UAV가 처리한 데이터량(평균) : ", np.mean(uav_data), file=f)
@@ -435,10 +424,9 @@ if MODE == 3:  # BUS 1대의 CPU를 증가시켜가며 실험
     for i in range(NUM_UAV):
         uavs_original.append(UAV(i, X, Y, Z))
     make_bus(REAL, NUM_BUS, BUS_SAME_CPU, BUS_SAME_CPU)
-    NUM_BUS = count_bus()
-    #cal_distance()
+    NUM_BUS = count_bus(lcoa_mode, simul_time)
 
-    make_task(3, 10, 50, 100)
+    make_task(5, 10, 50, 100)
 
     STEP = FB_MAX // 3
     system_cost1 = np.zeros(STEP)
@@ -459,7 +447,7 @@ if MODE == 3:  # BUS 1대의 CPU를 증가시켜가며 실험
 
         print("STEP : ", k_index + 1, "BUS1 CPU : ", k)
 
-        result1, rho_um1, rho_bm1, fum1, fbm1, mum1, num_bus1 = proposed_algorithm2(FU, k)  # 제안 알고리즘
+        bus_simul, result1, rho_um1, rho_bm1, fum1, fbm1, mum1, num_bus1 = proposed_algorithm2(FU, k, lcoa_mode, simul_time) # 제안 알고리즘
         uav_ratio1[k_index] = round(cvxpy.sum(rho_um1).value / NUM_TASK, 3)
         for b in range(num_bus1):
             bus_ratio1[k_index][b] = round(cvxpy.sum(rho_bm1[:, b:b + 1:1]).value / NUM_TASK, 3)
@@ -468,7 +456,7 @@ if MODE == 3:  # BUS 1대의 CPU를 증가시켜가며 실험
         delay_cost1[k_index] = round(cvxpy.sum(mum1).value, 3)
         energy_cost1[k_index] = round(system_cost1[k_index] - delay_cost1[k_index], 3)
 
-        result2, rho_um2, rho_bm2, fum2, fbm2, mum2, num_bus2 = proposed_algorithm2(FU)  # 제안 알고리즘
+        bus_simul2, result2, rho_um2, rho_bm2, fum2, fbm2, mum2, num_bus2 = proposed_algorithm2(FU, BUS_SAME_CPU, lcoa_mode, simul_time) # 제안 알고리즘
         uav_ratio2[k_index] = round(cvxpy.sum(rho_um2).value / NUM_TASK, 3)
         for b in range(num_bus2):
             bus_ratio2[k_index][b] = round(cvxpy.sum(rho_bm2[:, b:b + 1:1]).value / NUM_TASK, 3)
@@ -494,7 +482,7 @@ if MODE == 3:  # BUS 1대의 CPU를 증가시켜가며 실험
             plt.plot(x, y1[b], marker=next(marker), label=r'$b_{%d}$' % (b + 1))
         else:
             plt.plot(x, y1[b], marker=next(marker),
-                     label=r'$b_{%d}$' % (b + 1) + " : " + str(round(buses_original[b].cpu)) + " GHz")
+                     label=r'$b_{%d}$' % (b + 1) + " : " + str(round(bus_simul[b].cpu)) + " GHz")
 
     plt.xticks(x)
     plt.xlabel('Computing resource of $b_1$, ' + r'$f_1$(GHz)')
@@ -548,7 +536,7 @@ if MODE == 3:  # BUS 1대의 CPU를 증가시켜가며 실험
     f = open('./graphs/BUS_CPU_RATIO.txt', 'w')
 
     for b in range(NUM_BUS):
-        print("bus", b + 1, ": ", buses_original[b].distance, "m,", buses_original[b].cpu, " GHz", file=f)
+        print("bus", b + 1, ": ", bus_simul[b].distance, "m,", bus_simul[b].cpu, " GHz", file=f)
 
     #print("w1 :", w1, "w2 :", w2, file=f)
 
