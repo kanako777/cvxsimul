@@ -5,7 +5,7 @@ CPU_MIN = 9
 CPU_MAX = 15
 FU_MAX = 30
 FB_MAX = 30
-TASK_SIZE_MAX = 100
+MAX_TASK = 50
 DELAY_MIN = 2
 DELAY_MAX = 5
 MAX_BUS = 30
@@ -41,9 +41,9 @@ buses_original2 = []
 bus_simul = []
 
 task_original = []
-sm = np.ones((NUM_TASK, NUM_UAV))
-cm = np.ones((NUM_TASK, NUM_UAV))
-dm = np.ones((NUM_TASK, NUM_UAV))
+sm = np.ones((MAX_TASK, NUM_UAV))
+cm = np.ones((MAX_TASK, NUM_UAV))
+dm = np.ones((MAX_TASK, NUM_UAV))
 
 alpha_0 = 10 ** ((-50.0) / 10)  # 1m 참조 거리에서의 수신 파워 (-50dB를 와트로 변환)
 Noise = 10 ** ((-100.0 - 30) / 10)  # 노이즈 파워 (-100dBm를 와트로 변환)
