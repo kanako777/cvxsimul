@@ -1,4 +1,3 @@
-import tkinter as tk
 import folium
 import pyproj
 from folium.plugins import HeatMap
@@ -27,31 +26,27 @@ wgs84_params = {
 # 좌표 변환을 위한 Transformer 생성
 transformer = pyproj.Transformer.from_proj(grs80_params, wgs84_params)
 
-# GPS 좌표
-lon_c = 127.0361  # 여기에 실제 GPS X 좌표를 넣으세요
-lat_c = 37.5004  # 여기에 실제 GPS Y 좌표를 넣으세요
+# 지도의 중심지점 좌표
+lon_c = 127.0361
+lat_c = 37.5004
 
+# 각각의 좌표
 min_lon, max_lon = lon_c-0.0055, lon_c+0.0055
 min_lat, max_lat = lat_c-0.005, lat_c+0.005
 coa_lon, coa_lat = (550 /500)*0.0055+127.0306, (400 /500)*0.005 +37.4954
 lcoa_min_lon, lcoa_max_lon = (350 /500)*0.0055+127.0306, (750 /500)*0.0055+127.0306
 lcoa_min_lat, lcoa_max_lat = (200 /500)*0.005 +37.4954, (600 /500)*0.005 +37.4954
 
-
-# m = folium.Map(location=[37.5004, 127.0361], zoom_start=15)
-
+# 맵을 생성
 m = folium.Map(
     control_scale=True,
     location=[lat_c, lon_c],
     zoom_start=15,
-    min_lat=min_lat,
-    max_lat=max_lat,
-    min_lon=min_lon,
-    max_lon=max_lon,
     #tiles="stamentoner"
     #tiles='https://tiles.stadiamaps.com/tiles/stamen_terrain_lines/{z}/{x}/{y}{r}.png', attr='my'
 )
 
+# 버스 노선도 그리기(노선도를 안 그릴거면 row 49~167까지 삭제)
 geojson = {
     "type": "FeatureCollection",
     "features": [
@@ -173,15 +168,13 @@ bus_lines.add_to(m)
 bus_stops.add_to(m)
 
 
-# 지도를 해당 GPS 좌표로 초기화
-
-MousePosition().add_to(m)
-
+# 맵에 POI에 해당하는 1km x 1km 사각형 그리기
 ls = folium.PolyLine(
     locations=[[min_lat, min_lon], [min_lat, max_lon], [max_lat, max_lon], [max_lat, min_lon], [min_lat, min_lon]], color="green"
 )
 ls.add_to(m)
 
+# 맵에 POI 글자 쓰기
 folium.map.Marker(
     [min_lat, min_lon],
     icon=folium.DivIcon(
@@ -191,12 +184,13 @@ folium.map.Marker(
         )
     ).add_to(m)
 
-
+# 맵에 LCOA에 해당하는 사각형 그리기
 gj = folium.GeoJson(
     data={"type": "Polygon", "coordinates": [[[lcoa_min_lon, lcoa_min_lat], [lcoa_max_lon, lcoa_min_lat], [lcoa_max_lon, lcoa_max_lat], [lcoa_min_lon, lcoa_max_lat]]]}
 )
 gj.add_to(m)
 
+# 맵에 LCOA 글자 쓰기
 folium.map.Marker(
     [lcoa_min_lat, lcoa_min_lon],
     icon=folium.DivIcon(
@@ -206,6 +200,7 @@ folium.map.Marker(
         )
     ).add_to(m)
 
+# 맵에 COA 아이콘 넣고 CoA글자 쓰기
 folium.Marker([coa_lat, coa_lon],icon=folium.Icon(color='red', prefix='fa',icon='fire')).add_to(m)
 folium.map.Marker(
     [coa_lat, (coa_lon+lcoa_min_lon) / 2],
@@ -216,22 +211,19 @@ folium.map.Marker(
         )
     ).add_to(m)
 
-
-
+# 버스위치 GPS정보파일 읽기
 with open('./busdata/20231010-1.txt', 'r') as file:
     lines = file.readlines()
 
 count = 1
-heatmap = []
 
+# 파일에서 매 5분단위로 버스위치를 읽어서 버스아이콘을 지도에 추가
 for line in lines:
 
     bus_coordinates = []
-
     bus_info = line.strip().split('/')
 
     for info in bus_info:
-
         bus_route, bus_id, xx, yy = info.split(',')
 
         x= float(xx)
@@ -240,18 +232,15 @@ for line in lines:
         temp_y = (y /500)*0.005 +37.4954
 
         bus_coordinates.append((bus_id, temp_x,temp_y))
-        heatmap.append((temp_y, temp_x))
 
     fg = folium.FeatureGroup(name="Time:%d" % (count), show=True).add_to(m)
     for i, (bus_id, busX, busY) in enumerate(bus_coordinates, start=1):
-        # folium.Marker([busY, busX], icon=folium.Icon(color='blue', prefix='fa',icon='bus'), size='5', tooltip=f'Bus {bus_id}').add_to(marker_cluster)
         folium.Marker([busY, busX], icon=folium.Icon(color='blue', prefix='fa',icon='bus'), size='5', tooltip=f'Bus {bus_id}').add_to(fg)
-        pass
 
     count+=1
 
-
-#HeatMap(heatmap).add_to(m)
 folium.LayerControl().add_to(m)
+MousePosition().add_to(m)
 
+# 파일로 저장
 m.save('bus_map.html')
