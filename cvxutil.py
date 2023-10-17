@@ -59,6 +59,7 @@ class BUS:
 
 class BUS2:
     def __init__(self, id, x, y, t, cpu):
+        self.reset()
         self.id = id
         self.path_index = 0
         self.x = x
@@ -69,6 +70,14 @@ class BUS2:
         self.timetable = np.zeros(12)
         self.timetable[t] = 1
 
+    def reset(self):
+        self.id = 0
+        self.path_index = 0
+        self.path = []
+        self.cpu = 0
+        self.distance = 0
+        self.timetable = np.zeros(12)
+
     def move(self):
         self.path_index += 1
         if self.path_index == len(self.path):
@@ -76,75 +85,6 @@ class BUS2:
         self.location = self.path[self.path_index]
         self.x = self.location[0]
         self.y = self.location[1]
-
-def make_bus(real, num_bus=NUM_BUS, CPU_MIN=CPU_MIN, CPU_MAX=CPU_MAX):
-
-    bus_count = 0
-    bus_num = MAX_BUS
-    paths = []
-
-    if real:
-        simul_time = 12
-        with open("./busdata/20231010-2.txt", "r") as fp:
-            t = 0
-            while t < simul_time:
-                path = []
-                line = fp.readline()
-                poslst = line.split('/')
-                for pos in poslst:
-
-                    bus_route, bus_id, xx, yy = pos.split(',')
-                    x = float(xx)
-                    y = float(yy)
-
-                    find = 0
-
-                    for b in range(bus_count):
-                        if bus_id == buses_original2[b].id:
-                            find = 1
-                            find_number = b
-
-                    if find==0:
-                        buses_original2.append(BUS2(bus_id, x, y, t, random.randint(CPU_MIN,CPU_MAX)))
-                        bus_count += 1
-                    else:
-                        if buses_original2[find_number].timetable[t]==0:
-                            buses_original2[find_number].path.append([x, y, t])
-                            buses_original2[find_number].timetable[t]=1
-
-                    path.append((x, y))
-
-                while len(path) < bus_num:
-                    path.append((-1000, -1000))
-
-                paths.append(path)
-                t += 1
-
-        paths = np.array(paths).transpose((1, 0, 2))
-        num_bus = len(paths)
-
-    else:
-        for i in range(num_bus):
-            path = [(random.randint(0, MAP_SIZE), random.randint(0, MAP_SIZE))]
-            while len(path) < NUM_PATH:
-                x, y = path[-1]
-                next_x = random.randint(x - random.randint(1, 50), x + random.randint(1, 50))
-                next_y = random.randint(y - random.randint(1, 50), y + random.randint(1, 50))
-                if next_x > 0 and next_x < MAP_SIZE and next_y > 0 and next_y < MAP_SIZE:
-                    path.append((next_x, next_y))
-
-            paths.append(path)
-
-    # BUS 생성
-    for i in range(num_bus): #실제로는 사용안함
-        buses_original.append(BUS(i, paths[i], random.randint(CPU_MIN,CPU_MAX)))
-
-    temp = np.zeros(12)
-    for i in range(bus_count):
-        print("BUS ID:", buses_original2[i].id, "CPU:", buses_original2[i].cpu, "위치:", (buses_original2[i].x, buses_original2[i].y))
-        temp += buses_original2[i].timetable
-
-    print(temp)
 
 def cal_bus():
 
@@ -193,6 +133,72 @@ def cal_distance(): # UAV와 BUS간의 전송률 계산
             # 결과 출력
             # print("거리 :", Distance[i][j], "m ", " 전송률 :", R_ub[i][j], "Gbps")
 
+def make_bus(real, num_bus=NUM_BUS, input=INPUT_FILE, CPU_MIN=CPU_MIN, CPU_MAX=CPU_MAX):
+    fp=0
+    bus_count = 0
+    bus_num = MAX_BUS
+    paths = []
+
+    if real:
+        simul_time = 12
+        with open("./busdata/"+str(input)+".txt", "r") as fp:
+
+            t = 0
+            while t < simul_time:
+                path = []
+                line = fp.readline()
+
+                poslst = line.split('/')
+                for pos in poslst:
+
+                    bus_route, bus_id, xx, yy = pos.split(',')
+                    x = float(xx)
+                    y = float(yy)
+
+                    find = 0
+
+                    for b in range(bus_count):
+                        if bus_id == buses_original2[b].id:
+                            find = 1
+                            find_number = b
+
+                    if find==0:
+                        buses_original2.append(BUS2(bus_id, x, y, t, random.randint(CPU_MIN,CPU_MAX)))
+                        bus_count += 1
+                    else:
+                        if buses_original2[find_number].timetable[t]==0:
+                            buses_original2[find_number].path.append([x, y, t])
+                            buses_original2[find_number].timetable[t]=1
+
+                    path.append((x, y))
+
+                while len(path) < bus_num:
+                    path.append((-1000, -1000))
+
+                paths.append(path)
+                t += 1
+
+        paths = np.array(paths).transpose((1, 0, 2))
+        num_bus = len(paths)
+
+    else:
+        for i in range(num_bus):
+            path = [(random.randint(0, MAP_SIZE), random.randint(0, MAP_SIZE))]
+            while len(path) < NUM_PATH:
+                x, y = path[-1]
+                next_x = random.randint(x - random.randint(1, 50), x + random.randint(1, 50))
+                next_y = random.randint(y - random.randint(1, 50), y + random.randint(1, 50))
+                if next_x > 0 and next_x < MAP_SIZE and next_y > 0 and next_y < MAP_SIZE:
+                    path.append((next_x, next_y))
+
+            paths.append(path)
+
+    # BUS 생성
+    for i in range(num_bus):
+        buses_original.append(BUS(i, paths[i], random.randint(CPU_MIN,CPU_MAX)))
+
+    fp.close()
+
 # TASK 생성
 def make_task(start_size, end_size, min_cycle, max_cycle, num_task=NUM_TASK):
 
@@ -231,7 +237,7 @@ def make_task2(start_size, end_size, min_cycle, max_cycle, num_task=NUM_TASK):
     for i in range(NUM_TASK):
         print("TASK", i+1, " Size:", sm[i]*1E3, "Mbits", "Cycles:", cm[i])
 
-def proposed_algorithm2(k=FU, fb=0, lcoa_mode=1, simul_time=0, num_task=NUM_TASK, distance=MAX_LCOA):
+def proposed_algorithm2(k=FU, fb=0, lcoa_mode=1, simul_time=0, num_task=NUM_TASK, distance=MAX_LCOA, Delay_Constraint=1):
 
     remain_system_cost1 = 0
     remain_system_cost2 = 0
@@ -251,7 +257,6 @@ def proposed_algorithm2(k=FU, fb=0, lcoa_mode=1, simul_time=0, num_task=NUM_TASK
         MAX_DISTANCE = distance
 
     DMAT = [[0 for j in range(MAX_BUS)] for i in range(NUM_UAV)]
-
     for i in range(NUM_UAV):
         for j in range(MAX_BUS):
 
@@ -266,11 +271,12 @@ def proposed_algorithm2(k=FU, fb=0, lcoa_mode=1, simul_time=0, num_task=NUM_TASK
                     if (abs_x.value <= MAX_LCOA and abs_y.value <= MAX_LCOA):
                         bus_simul.append(buses_original2[j])
 
-                else:
-                    if DMAT[i][j] <= MAX_DISTANCE:
-                        bus_simul.append(buses_original2[j])
+                #else:
+                    #if DMAT[i][j] <= MAX_DISTANCE:
+                        #bus_simul.append(buses_original2[j])
 
     NUM_BUS = len(bus_simul)
+    #print("버스대수 : ", NUM_BUS)
 
     # mode=2 실험을 위해서 필요함(삭제하면 안됨)
     #bus_simul[0].cpu = 15
@@ -308,8 +314,7 @@ def proposed_algorithm2(k=FU, fb=0, lcoa_mode=1, simul_time=0, num_task=NUM_TASK
             R_ub[i][j] = W_ub[i][j] * math.log2(1 + SNR) / 1E9  # Gbps
 
             # 결과 출력
-            print("BUS ID:", bus_simul[j].id, ", CPU:", bus_simul[j].cpu, ", 위치:", (bus_simul[j].x, bus_simul[j].y),
-                  ", 거리 :", round(Distance[i][j]), "m", ", 전송률 :", round(R_ub[i][j] * 1000, 2), "Mbps")
+            #print("BUS ID:", bus_simul[j].id, ", CPU:", bus_simul[j].cpu, ", 위치:", (bus_simul[j].x, bus_simul[j].y), ", 거리 :", round(Distance[i][j]), "m", ", 전송률 :", round(R_ub[i][j] * 1000, 2), "Mbps")
 
     solution = np.ones(NUM_TASK)
 
@@ -405,7 +410,9 @@ def proposed_algorithm2(k=FU, fb=0, lcoa_mode=1, simul_time=0, num_task=NUM_TASK
                 constraints += [cvxpy.sum(fbm[:, b:b + 1:], axis=0, keepdims=True) <= bus_fb]
 
             for m in range(t_count):
-                constraints += [0 <= mum[m], mum[m] <= dm[m]]
+                constraints += [0 <= mum[m]]
+                if (Delay_Constraint == 1):
+                    constraints += [mum[m] <= dm[m]]
                 constraints += [mum[m] >= t_um_cost[m]]
                 for b in range(NUM_BUS):
                     constraints += [mum[m] >= t_bus_cost[m][b]]
@@ -434,11 +441,11 @@ def proposed_algorithm2(k=FU, fb=0, lcoa_mode=1, simul_time=0, num_task=NUM_TASK
                 cm_remain_task = np.sum(cm[t_count:NUM_TASK:])
                 delay_remain_task = cm_remain_task / FU
                 energy_remain_task = epsilon_u * delay_remain_task * FU**3
-                remain_system_cost2 = delay_remain_task + energy_remain_task
+                remain_system_cost2 = round(omega1*delay_remain_task + omega2*energy_remain_task,3)
 
             return bus_simul, result, remain_system_cost1,remain_system_cost2, rho_um, rho_bm, fum, fbm, mum, NUM_BUS, t_count
 
-def uav_only_algorithm(k=FU, fb=0, lcoa_mode=1, simul_time=0, num_task=NUM_TASK, distance=MAX_LCOA):
+def uav_only_algorithm(k=FU, fb=0, lcoa_mode=1, simul_time=0, num_task=NUM_TASK, distance=MAX_LCOA, Delay_Constraint=1):
     remain_system_cost1 = 0
     remain_system_cost2 = 0
 
@@ -506,8 +513,10 @@ def uav_only_algorithm(k=FU, fb=0, lcoa_mode=1, simul_time=0, num_task=NUM_TASK,
                 [rho_um == 1]
 
             for m in range(t_count):
-                constraints += [0 <= mum[m], mum[m] <= dm[m]]
+                constraints += [0 <= mum[m]]
                 constraints += [mum[m] >= t_um_cost[m]]
+                if (Delay_Constraint==1):
+                    constraints += [mum[m] <= dm[m]]
 
             prob = cvx.Problem(obj, constraints)
             result = prob.solve()
@@ -532,11 +541,11 @@ def uav_only_algorithm(k=FU, fb=0, lcoa_mode=1, simul_time=0, num_task=NUM_TASK,
             cm_remain_task = np.sum(cm[t_count:NUM_TASK:])
             delay_remain_task = cm_remain_task / FU
             energy_remain_task = epsilon_u * delay_remain_task * FU ** 3
-            remain_system_cost2 = delay_remain_task + energy_remain_task
+            remain_system_cost2 = round(omega1*delay_remain_task + omega2*energy_remain_task,3)
 
             return result, remain_system_cost1, remain_system_cost2, rho_um, fum, mum, NUM_BUS, e_um_cost, t_count
 
-def bus_only_algorithm(k=FU, fb=0, lcoa_mode=1, simul_time=0, num_task=NUM_TASK, distance=MAX_LCOA):
+def bus_only_algorithm(k=FU, fb=0, lcoa_mode=1, simul_time=0, num_task=NUM_TASK, distance=MAX_LCOA, Delay_Constraint=1):
     remain_system_cost1 = 0
     remain_system_cost2 = 0
     time_t = simul_time
@@ -662,7 +671,10 @@ def bus_only_algorithm(k=FU, fb=0, lcoa_mode=1, simul_time=0, num_task=NUM_TASK,
                 constraints += [cvxpy.sum(fbm[:, b:b+1:], axis=0, keepdims=True) <= bus_fb]
 
             for m in range(t_count):
-                constraints += [0<= mum[m], mum[m] <= dm[m]]
+                constraints += [0 <= mum[m]]
+                if (Delay_Constraint == 1):
+                    constraints += [mum[m] <= dm[m]]
+
                 for b in range(NUM_BUS):
                     constraints += [mum[m] >= t_bus_cost[m][b]]
 
@@ -689,11 +701,12 @@ def bus_only_algorithm(k=FU, fb=0, lcoa_mode=1, simul_time=0, num_task=NUM_TASK,
             cm_remain_task = np.sum(cm[t_count:NUM_TASK:])
             delay_remain_task = cm_remain_task / FU
             energy_remain_task = epsilon_u * delay_remain_task * FU ** 3
-            remain_system_cost2 = delay_remain_task + energy_remain_task
+            remain_system_cost2 = round(omega1*delay_remain_task + omega2*energy_remain_task,3)
 
             return result, remain_system_cost1, remain_system_cost2, rho_bm, fbm, mum, t_count
 
-def fixed_algorithm(k=FU, fb=0, lcoa_mode=1, simul_time=0, num_task=NUM_TASK, distance=MAX_LCOA):
+def fixed_algorithm(k=FU, fb=0, lcoa_mode=1, simul_time=0, num_task=NUM_TASK, distance=MAX_LCOA, Delay_Constraint=1):
+
     remain_system_cost1 = 0
     remain_system_cost2 = 0
     time_t = simul_time
@@ -743,6 +756,7 @@ def fixed_algorithm(k=FU, fb=0, lcoa_mode=1, simul_time=0, num_task=NUM_TASK, di
         for j in range(NUM_BUS):
             Distance[i][j] = math.dist((uavs_original[0].x, uavs_original[0].y, uavs_original[0].z),
                                        (bus_simul[j].x, bus_simul[j].y, 0))
+            bus_simul[j].distance = round(Distance[i][j])
             # Distance[i][j] = random.randint(distance-50, distance)
 
             # 전송률 계산 (Shannon Capacity 공식 사용)
@@ -833,7 +847,7 @@ def fixed_algorithm(k=FU, fb=0, lcoa_mode=1, simul_time=0, num_task=NUM_TASK, di
             constraints = \
                 [0 <= fum, cvxpy.sum(fum) <=FU] + \
                 [0 <= fbm] + \
-                [rho_um == 0.5] + \
+                [0.5 <= rho_um, rho_um <= 0.5] + \
                 [cvxpy.sum(rho_bm, axis=1, keepdims=True) == 0.5] + \
                 [0 <= rho_bm, rho_bm <= 0.5]
 
@@ -842,7 +856,9 @@ def fixed_algorithm(k=FU, fb=0, lcoa_mode=1, simul_time=0, num_task=NUM_TASK, di
                 constraints += [cvxpy.sum(fbm[:, b:b+1:], axis=0, keepdims=True) <= bus_fb]
 
             for m in range(t_count):
-                constraints += [0<= mum[m], mum[m] <= dm[m]]
+                constraints += [0 <= mum[m]]
+                if (Delay_Constraint == 1):
+                    constraints += [mum[m] <= dm[m]]
                 constraints += [mum[m] >= t_um_cost[m]]
                 for b in range(NUM_BUS):
                     constraints += [mum[m] >= t_bus_cost[m][b]]
@@ -850,7 +866,7 @@ def fixed_algorithm(k=FU, fb=0, lcoa_mode=1, simul_time=0, num_task=NUM_TASK, di
             prob = cvx.Problem(obj, constraints)
             result = prob.solve()
 
-            if (rho_um.value is None):
+            if (rho_bm.value is None):
                 solution[t_count - 1] = 0
                 break
 
@@ -872,9 +888,10 @@ def fixed_algorithm(k=FU, fb=0, lcoa_mode=1, simul_time=0, num_task=NUM_TASK, di
             cm_remain_task = np.sum(cm[t_count:NUM_TASK:])
             delay_remain_task = cm_remain_task / FU
             energy_remain_task = epsilon_u * delay_remain_task * FU ** 3
-            remain_system_cost2 = delay_remain_task + energy_remain_task
+            remain_system_cost2 = round(omega1*delay_remain_task + omega2*energy_remain_task,3)
 
             return result, remain_system_cost1, remain_system_cost2, rho_um, rho_bm, fum, fbm, mum, t_count
+
 
 def busmap(X_STEP=5, Y_STEP=5, distance=MAX_DISTANCE):
 
@@ -966,9 +983,9 @@ def count_bus(lcoa_mode=1, simul_time=0):
                     if (abs_x.value <= MAX_LCOA and abs_y.value <= MAX_LCOA):
                         simul.append(buses_original2[j])
 
-                else:
-                    if DMAT[i][j] <= MAX_DISTANCE:
-                        simul.append(buses_original2[j])
+                #else:
+                    #if DMAT[i][j] <= MAX_DISTANCE:
+                        #simul.append(buses_original2[j])
 
     NUM_BUS = len(simul)
     return NUM_BUS

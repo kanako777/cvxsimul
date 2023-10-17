@@ -2,12 +2,13 @@ import numpy as np
 
 REAL = 1
 lcoa_mode = 1
+INPUT_FILE = 1
 SIMUL_TIME = 10
 CPU_MIN = 9
 CPU_MAX = 15
 FU_MAX = 30
 FB_MAX = 30
-MAX_TASK = 30
+MAX_TASK = 40
 DELAY_MIN = 2
 DELAY_MAX = 5
 MAX_BUS = 30
@@ -24,8 +25,8 @@ MAX_LCOA = 200
 NUM_PATH = 20  # 버스 운행경로별로 지나는 정류장(지점)의 개수
 MAP_SIZE = 1000  # MAP크기
 
-omega1 = 1
-omega2 = 1
+omega1 = 0.5
+omega2 = 0.5
 epsilon_u = 0.1
 lamda = 0.5
 
@@ -35,7 +36,7 @@ BUS_POS = [100, 200, 300, 400, 500, 600, 700, 800, 900]
 uavs_original = []
 buses_original = []
 buses_original2 = []
-bus_simul = []
+#bus_simul = []
 
 task_original = []
 sm = np.ones((MAX_TASK, NUM_UAV))

@@ -27,18 +27,18 @@ from mpl_toolkits.mplot3d import Axes3D
 #print("MODE = 4 : UAV가 버스를 찾는 거리를 증가")
 #print("MODE = 90 : omega1를 증가")
 
-MODE = 5
-simul_time = 10
+simul_time = 6
+MODE = 11
 
 if MODE == 0:  # UAV와 BUS의 ratio 실험
 
     for i in range(NUM_UAV):
         uavs_original.append(UAV(i, X, Y, Z))
 
-    make_bus(REAL, NUM_BUS)
+    make_bus(REAL, NUM_BUS, input=2)
     make_task2(3, 15, 50, 150)
 
-    bus_simul, result, cost1, cost2, rho_um, rho_bm, fum, fbm, mum, num_bus1, t_count = proposed_algorithm2(FU,0, lcoa_mode, 2) # 제안 알고리즘
+    bus_simul, result, cost1, cost2, rho_um, rho_bm, fum, fbm, mum, num_bus1, t_count = proposed_algorithm2(FU,0, lcoa_mode, simul_time) # 제안 알고리즘
 
     NUM_BUS = num_bus1
     xaxis = np.arange(1, NUM_TASK + 1, 1)
@@ -310,306 +310,299 @@ if MODE == 11:  # TASK의 개수를 증가시켜가며 실험
 
     for i in range(NUM_UAV):
         uavs_original.append(UAV(i, X, Y, Z))
-    make_bus(REAL, NUM_BUS)
 
-    STEP = 3
+    STEP = 4
     STEP_SIZE = MAX_TASK // STEP
     width = STEP_SIZE / 4 * 0.5
     space = STEP_SIZE / 2 / 4
 
-    make_task(3, 15, 50, 150, MAX_TASK)
+    make_task(5, 10, 50, 100, MAX_TASK)
 
-    x = np.arange(STEP_SIZE, MAX_TASK+1, STEP_SIZE)
+    x = np.arange(STEP_SIZE, MAX_TASK + 1, STEP_SIZE)
     marker = itertools.cycle(('+', '2', '.', 'x'))
     plt.style.use(['science', 'ieee', 'no-latex'])
-
-    FU_STEP = 3
     plt.tight_layout()
+
     f = open('./graphs/UAV_CPU_COST.txt', 'w')
+    w1 = omega1
+    w2 = omega2
 
-    for u in range(FU, FU * FU_STEP + 1, FU*(FU_STEP-1)):
+    for input in [1,2]:
 
-        FU = u
+        if input ==1:
+            simul_time = 6
+        elif input ==2:
+            simul_time = 10
 
-        uav_ratio1 = np.zeros(STEP)
-        bus_ratio1 = np.zeros((STEP, NUM_BUS))
-        uav_ratio2 = np.zeros(STEP)
-        bus_ratio2 = np.zeros((STEP, NUM_BUS))
-        system_cost = np.zeros((4, STEP))
-        all_system_cost1 = np.zeros((4, STEP))
-        all_system_cost2 = np.zeros((4, STEP))
-        delay_cost = np.zeros((4, STEP))
-        energy_cost = np.zeros((4, STEP))
-        processed_task = np.zeros((4, STEP))
+        make_bus(REAL, NUM_BUS, input)
 
-        is_end = [0, 0, 0, 0]
-        w1 = 1
-        w2 = 1
-        k_index = 0
+        FU = 3
+        FU_STEP = 3
 
-        for k in range(STEP_SIZE, MAX_TASK+1, STEP_SIZE):
+        for u in range(FU, FU * FU_STEP + 1, FU*(FU_STEP-1)):
 
-            print("FU : ", FU, "STEP : ", k_index + 1, "No. of tasks : ", k)
+            FU = u
 
-            if is_end[0]==0:
-                bus_simul, result1, cost1, cost2, rho_um1, rho_bm1, fum1, fbm1, mum1, num_bus1, t_count = proposed_algorithm2(FU, 0, lcoa_mode, simul_time, k)  # 제안 알고리즘
-                processed_task[0][k_index] = t_count
+            uav_ratio1 = np.zeros(STEP)
+            bus_ratio1 = np.zeros((STEP, NUM_BUS))
+            uav_ratio2 = np.zeros(STEP)
+            bus_ratio2 = np.zeros((STEP, NUM_BUS))
+            system_cost = np.zeros((4, STEP))
+            all_system_cost1 = np.zeros((4, STEP))
+            all_system_cost2 = np.zeros((4, STEP))
+            delay_cost = np.zeros((4, STEP))
+            energy_cost = np.zeros((4, STEP))
+            processed_task = np.zeros((4, STEP))
 
-                all_system_cost1[0][k_index] = round(result1+cost1, 3)
-                all_system_cost2[0][k_index] = round(result1+cost2, 3)
+            is_end = [0, 0, 0, 0]
+            k_index = 0
 
-                if k==t_count:
-                    system_cost[0][k_index] = round(result1 / t_count, 3)
-                    delay_cost[0][k_index] = round(cvxpy.sum(mum1).value * w1 / t_count, 3)
-                    energy_cost[0][k_index] = round(system_cost[0][k_index] - delay_cost[0][k_index], 3)
-                    uav_ratio1[k_index] = round(cvxpy.sum(rho_um1).value / t_count, 3)
-                    for b in range(NUM_BUS):
-                        bus_ratio1[k_index][b] = round(cvxpy.sum(rho_bm1[:, b:b + 1:1]).value / t_count, 3)
+            for k in range(STEP_SIZE, MAX_TASK+1, STEP_SIZE):
+                t_count = 0
+                t_count2 = 0
+                print("File No: ", input, "FU : ", FU, "STEP : ", k_index + 1, "No. of tasks : ", k)
 
-                #if (k_index >=1) and (processed_task[0][k_index-1] == processed_task[0][k_index]):
-                    #is_end[0]=t_count
-                #elif t_count < k:
-                    #is_end[0] = t_count
+                if is_end[0]==0:
+                    bus_simul, result1, cost1, cost2, rho_um1, rho_bm1, fum1, fbm1, mum1, num_bus1, t_count = proposed_algorithm2(FU, 0, lcoa_mode, simul_time, num_task=k, Delay_Constraint=1)  # 제안 알고리즘
+                    processed_task[0][k_index] = t_count
 
-                print("Proposed가 처리한 task 개수 :", t_count)
+                    if t_count == k:
+                        all_system_cost2[0][k_index] = round(result1 + cost2, 3)
+                        system_cost[0][k_index] = round(result1 / t_count, 3)
+                        delay_cost[0][k_index] = round(cvxpy.sum(mum1).value * w1 / t_count, 3)
+                        energy_cost[0][k_index] = round(system_cost[0][k_index] - delay_cost[0][k_index], 3)
+                        uav_ratio1[k_index] = round(cvxpy.sum(rho_um1).value / t_count, 3)
+                        for b in range(NUM_BUS):
+                            bus_ratio1[k_index][b] = round(cvxpy.sum(rho_bm1[:, b:b + 1:1]).value / t_count, 3)
 
-            else:
-                processed_task[0][k_index] = processed_task[0][k_index-1]
-                system_cost[0][k_index] = system_cost[0][k_index-1]
-                delay_cost[0][k_index] = delay_cost[0][k_index-1]
-                energy_cost[0][k_index] = energy_cost[0][k_index-1]
-                uav_ratio1[k_index] = uav_ratio1[k_index-1]
-                bus_ratio1[k_index] = bus_ratio1[k_index-1]
+                    elif t_count < k:
+                        bus_simul, result1, cost1, cost2, rho_um1, rho_bm1, fum1, fbm1, mum1, num_bus1, t_count2 = proposed_algorithm2(FU, 0, lcoa_mode, simul_time, num_task=k, Delay_Constraint=0)  # 제안 알고리즘
+                        all_system_cost2[0][k_index] = round(result1 + cost2, 3)
+                        is_end[0]=t_count
 
-            if is_end[1]==0:
-                result2, cost1, cost2, rho_um2, fum2, mum2, num_bus2, e_um_cost, t_count = uav_only_algorithm(FU, 0,lcoa_mode, simul_time, k)  # uav only 알고리즘
+                else:
+                    t_count = is_end[0]
+                    processed_task[0][k_index] = processed_task[0][k_index-1]
+                    bus_simul, result1, cost1, cost2, rho_um1, rho_bm1, fum1, fbm1, mum1, num_bus1, t_count2 = proposed_algorithm2(FU, 0, lcoa_mode, simul_time, num_task=k, Delay_Constraint=0)  # 제안 알고리즘
+                    all_system_cost2[0][k_index] = round(result1 + cost2, 3)
 
-                processed_task[1][k_index] = t_count
-                all_system_cost1[1][k_index] = round(result2 + cost1, 3)
-                all_system_cost2[1][k_index] = round(result2 + cost2, 3)
+                print("PR가 처리한 task 개수 : ", t_count, t_count2)
 
-                if k == t_count:
-                    system_cost[1][k_index] = round(result2 / t_count, 3)
-                    delay_cost[1][k_index] = round(cvxpy.sum(mum2).value * w1 / t_count, 3)
-                    energy_cost[1][k_index] = round(system_cost[1][k_index] - delay_cost[1][k_index], 3)
+                if is_end[1]==0:
+                    result2, cost1, cost2, rho_um2, fum2, mum2, num_bus2, e_um_cost, t_count = uav_only_algorithm(FU, 0,lcoa_mode, simul_time, num_task=k, Delay_Constraint=1)  # uav only 알고리즘
+                    processed_task[1][k_index] = t_count
 
-                #if (k_index >=1) and (processed_task[1][k_index-1] == processed_task[1][k_index]):
-                    #is_end[1]=t_count
-                #elif t_count < k:
-                    #is_end[1] = t_count
+                    if t_count == k:
+                        all_system_cost2[1][k_index] = round(result2 + cost2, 3)
+                        system_cost[1][k_index] = round(result2 / t_count, 3)
+                        delay_cost[1][k_index] = round(cvxpy.sum(mum2).value * w1 / t_count, 3)
+                        energy_cost[1][k_index] = round(system_cost[1][k_index] - delay_cost[1][k_index], 3)
 
-                print("LC가 처리한 task 개수 :", t_count)
+                    elif t_count < k:
+                        result2, cost1, cost2, rho_um2, fum2, mum2, num_bus2, e_um_cost, t_count2 = uav_only_algorithm(FU, 0, lcoa_mode, simul_time, num_task=k, Delay_Constraint=0)  # uav only 알고리즘
+                        all_system_cost2[1][k_index] = round(result2 + cost2, 3)
+                        is_end[1]=t_count
 
-            else:
-                processed_task[1][k_index] = processed_task[1][k_index-1]
-                system_cost[1][k_index] = system_cost[1][k_index-1]
-                delay_cost[1][k_index] = delay_cost[1][k_index-1]
-                energy_cost[1][k_index] = energy_cost[1][k_index-1]
+                else:
+                    t_count = is_end[1]
+                    processed_task[1][k_index] = processed_task[1][k_index - 1]
+                    result2, cost1, cost2, rho_um2, fum2, mum2, num_bus2, e_um_cost, t_count2 = uav_only_algorithm(FU, 0, lcoa_mode, simul_time, num_task=k, Delay_Constraint=0)  # uav only 알고리즘
+                    all_system_cost2[1][k_index] = round(result2 + cost2, 3)
 
+                print("LC가 처리한 task 개수 : ", t_count, t_count2)
 
-            if is_end[2]==0:
-                result3, cost1, cost2, rho_bm3, fbm3, mum3, t_count = bus_only_algorithm(FU, 0,lcoa_mode, simul_time, k)  # bus only 알고리즘
+                if is_end[2]==0:
+                    result3, cost1, cost2, rho_bm3, fbm3, mum3, t_count = bus_only_algorithm(FU, 0,lcoa_mode, simul_time, num_task=k, Delay_Constraint=1)  # bus only 알고리즘
+                    processed_task[2][k_index] = t_count
 
-                processed_task[2][k_index] = t_count
-                all_system_cost1[2][k_index] = round(result3 + cost1, 3)
-                all_system_cost2[2][k_index] = round(result3 + cost2, 3)
+                    if t_count == k:
+                        all_system_cost2[2][k_index] = round(result3 + cost2, 3)
+                        system_cost[2][k_index] = round(result3 / t_count, 3)
+                        delay_cost[2][k_index] = round(cvxpy.sum(mum3).value * w1 / t_count, 3)
+                        energy_cost[2][k_index] = round(system_cost[2][k_index] - delay_cost[2][k_index], 3)
 
-                if k == t_count:
-                    system_cost[2][k_index] = round(result3 / t_count, 3)
-                    delay_cost[2][k_index] = round(cvxpy.sum(mum3).value * w1 / t_count, 3)
-                    energy_cost[2][k_index] = round(system_cost[2][k_index] - delay_cost[2][k_index], 3)
+                    elif t_count < k:
+                        result3, cost1, cost2, rho_bm3, fbm3, mum3, t_count2 = bus_only_algorithm(FU, 0,lcoa_mode, simul_time, num_task=k, Delay_Constraint=0)  # bus only 알고리즘
+                        all_system_cost2[2][k_index] = round(result3 + cost2, 3)
+                        is_end[2]=t_count
 
-                #if (k_index >=1) and (processed_task[2][k_index-1] == processed_task[2][k_index]):
-                    #is_end[2]=t_count
-                #elif t_count < k:
-                    #is_end[2] = t_count
+                else:
+                    t_count = is_end[2]
+                    processed_task[2][k_index] = processed_task[2][k_index - 1]
+                    result3, cost1, cost2, rho_bm3, fbm3, mum3, t_count2 = bus_only_algorithm(FU, 0,lcoa_mode, simul_time, num_task=k, Delay_Constraint=0)  # bus only 알고리즘
+                    all_system_cost2[2][k_index] = round(result3 + cost2, 3)
 
-                print("FO가 처리한 task 개수 :", t_count)
+                print("FO가 처리한 task 개수 : ", t_count, t_count2)
 
-            else:
-                processed_task[2][k_index] = processed_task[2][k_index-1]
-                system_cost[2][k_index] = system_cost[2][k_index-1]
-                delay_cost[2][k_index] = delay_cost[2][k_index-1]
-                energy_cost[2][k_index] = energy_cost[2][k_index-1]
+                if is_end[3] == 0:
 
+                    result4, cost1, cost2, rho_um4, rho_bm4, fum4, fbm4, mum4, t_count = fixed_algorithm(FU, 0,lcoa_mode, simul_time, num_task=k, Delay_Constraint=1)  # fixed 알고리즘
+                    processed_task[3][k_index] = t_count
 
-            if is_end[3] == 0:
+                    if t_count ==k :
+                        all_system_cost2[3][k_index] = round(result4 + cost2, 3)
+                        system_cost[3][k_index] = round(result4 / t_count, 3)
+                        delay_cost[3][k_index] = round(cvxpy.sum(mum4).value * w1 / t_count, 3)
+                        energy_cost[3][k_index] = round(system_cost[3][k_index] - delay_cost[3][k_index], 3)
+                        uav_ratio2[k_index] = round(cvxpy.sum(rho_um4).value / t_count, 3)
 
-                result4, cost1, cost2, rho_um4, rho_bm4, fum4, fbm4, mum4, t_count = fixed_algorithm(FU, 0,lcoa_mode, simul_time, k)  # fixed 알고리즘
+                        for b in range(NUM_BUS):
+                            bus_ratio2[k_index][b] = round(cvxpy.sum(rho_bm4[:, b:b + 1:1]).value / t_count, 3)
 
-                processed_task[3][k_index] = t_count
-                all_system_cost1[3][k_index] = round(result4 + cost1, 3)
-                all_system_cost2[3][k_index] = round(result4 + cost2, 3)
+                    elif t_count < k:
+                        result4, cost1, cost2, rho_um4, rho_bm4, fum4, fbm4, mum4, t_count2 = fixed_algorithm(FU, 0,lcoa_mode, simul_time, num_task=k, Delay_Constraint=0)  # fixed 알고리즘
+                        all_system_cost2[3][k_index] = round(result4 + cost2, 3)
+                        is_end[3]=t_count
 
-                if k == t_count:
-                    system_cost[3][k_index] = round(result4 / t_count, 3)
-                    delay_cost[3][k_index] = round(cvxpy.sum(mum4).value * w1 / t_count, 3)
-                    energy_cost[3][k_index] = round(system_cost[3][k_index] - delay_cost[3][k_index], 3)
-                    uav_ratio2[k_index] = round(cvxpy.sum(rho_um4).value / t_count, 3)
+                else:
+                    t_count = is_end[3]
+                    processed_task[3][k_index] = processed_task[3][k_index - 1]
+                    result4, cost1, cost2, rho_um4, rho_bm4, fum4, fbm4, mum4, t_count2 = fixed_algorithm(FU, 0,lcoa_mode, simul_time, num_task=k, Delay_Constraint=0)  # fixed 알고리즘
+                    all_system_cost2[3][k_index] = round(result4 + cost2, 3)
 
-                    for b in range(NUM_BUS):
-                        bus_ratio2[k_index][b] = round(cvxpy.sum(rho_bm4[:, b:b + 1:1]).value / t_count, 3)
+                print("FPO가 처리한 task 개수 : ", t_count, t_count2)
 
-                #if (k_index >= 1) and (processed_task[3][k_index - 1] == processed_task[3][k_index]):
-                    #is_end[3] = t_count
-                #elif t_count < k:
-                    #is_end[3] = t_count
+                print("[System Cost]", end=' ')
+                print("Proposed : ", all_system_cost2[0][k_index], "UAV Only : ", all_system_cost2[1][k_index],
+                      "Bus Only : ",
+                      all_system_cost2[2][k_index], "Fixed : ", all_system_cost2[3][k_index])
 
-                print("FPO가 처리한 task 개수 :", t_count)
+                #print(uav_ratio1[k_index])
+                #print(bus_ratio1[k_index])
+                #print(uav_ratio2[k_index])
+                #print(bus_ratio2[k_index])
 
-            else:
-                processed_task[3][k_index] = processed_task[3][k_index-1]
-                system_cost[3][k_index] = system_cost[3][k_index-1]
-                delay_cost[3][k_index] = delay_cost[3][k_index-1]
-                energy_cost[3][k_index] = energy_cost[3][k_index-1]
-                uav_ratio2[k_index] = uav_ratio2[k_index-1]
-                bus_ratio2[k_index] = bus_ratio2[k_index-1]
+                #print("[All System Cost-1]", end=' ')
+                #print("Proposed : ", all_system_cost1[0][k_index], "UAV Only : ", all_system_cost1[1][k_index], "Bus Only : ", all_system_cost1[2][k_index], "Fixed : ", all_system_cost1[3][k_index])
 
-            print(uav_ratio1[k_index])
-            print(bus_ratio1[k_index])
-            print(uav_ratio2[k_index])
-            print(bus_ratio2[k_index])
+                #print("[System Cost]", end=' ')
+                #print("Proposed : ", system_cost[0][k_index], "UAV Only : ", system_cost[1][k_index], "Bus Only : ", system_cost[2][k_index], "Fixed : ", system_cost[3][k_index])
 
-            print("[All System Cost-1]", end=' ')
-            print("Proposed : ", all_system_cost1[0][k_index], "UAV Only : ", all_system_cost1[1][k_index], "Bus Only : ", all_system_cost1[2][k_index], "Fixed : ", all_system_cost1[3][k_index])
-            print("[All System Cost-2]", end=' ')
-            print("Proposed : ", all_system_cost2[0][k_index], "UAV Only : ", all_system_cost2[1][k_index], "Bus Only : ",
-            all_system_cost2[2][k_index], "Fixed : ", all_system_cost2[3][k_index])
+                #print("[Delay Cost]", end=' ')
+                #print("Proposed : ", delay_cost[0][k_index], "UAV Only : ", delay_cost[1][k_index], "Bus Only : ", delay_cost[2][k_index], "Fixed : ", delay_cost[3][k_index])
 
-            print("[System Cost]", end=' ')
-            print("Proposed : ", system_cost[0][k_index], "UAV Only : ", system_cost[1][k_index], "Bus Only : ",
-                  system_cost[2][k_index], "Fixed : ", system_cost[3][k_index])
+                #print("[Energy Cost]", end=' ')
+                #print("Proposed : ", energy_cost[0][k_index], "UAV Only : ", energy_cost[1][k_index], "Bus Only : ", energy_cost[2][k_index], "Fixed : ", energy_cost[3][k_index])
 
-            print("[Delay Cost]", end=' ')
-            print("Proposed : ", delay_cost[0][k_index], "UAV Only : ", delay_cost[1][k_index], "Bus Only : ",
-                  delay_cost[2][k_index], "Fixed : ", delay_cost[3][k_index])
+                k_index += 1
 
-            print("[Energy Cost]", end=' ')
-            print("Proposed : ", energy_cost[0][k_index], "UAV Only : ", energy_cost[1][k_index], "Bus Only : ",
-                  energy_cost[2][k_index], "Fixed : ", energy_cost[3][k_index])
+            uav_ratio1[uav_ratio1 == 0] = np.nan
+            bus_ratio1[bus_ratio1 == 0] = np.nan
+            uav_ratio2[uav_ratio2 == 0] = np.nan
+            bus_ratio2[bus_ratio2 == 0] = np.nan
+            system_cost[system_cost == 0] = np.nan
+            delay_cost[delay_cost == 0] = np.nan
+            energy_cost[energy_cost == 0] = np.nan
 
-            k_index += 1
+            plt.bar(x-1*space, processed_task[0], width, label='Proposed')
+            plt.bar(x-0*space, processed_task[1], width, label='LC')
+            plt.bar(x+1*space, processed_task[2], width, label='FO')
+            plt.bar(x+2*space, processed_task[3], width, label='FPO')
 
-        uav_ratio1[uav_ratio1 == 0] = np.nan
-        bus_ratio1[bus_ratio1 == 0] = np.nan
-        uav_ratio2[uav_ratio2 == 0] = np.nan
-        bus_ratio2[bus_ratio2 == 0] = np.nan
-        system_cost[system_cost == 0] = np.nan
-        delay_cost[delay_cost == 0] = np.nan
-        energy_cost[energy_cost == 0] = np.nan
+            plt.xticks(x)
+            plt.ylim([0,MAX_TASK+5])
+            plt.xlabel('Number of tasks, ' + r'$\mathcal{M}$')
+            plt.ylabel('Number of processed tasks')
+            plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.2),
+                       fancybox=True, shadow=True, ncol=4)
+            plt.savefig("./graphs/" + "UAV_CPU_TASK_NUMBER_FILE" + str(input) +"FU"+ str(FU))
+            plt.clf()
 
-        plt.bar(x-1*space, processed_task[0], width, label='Proposed')
-        plt.bar(x-0*space, processed_task[1], width, label='LC')
-        plt.bar(x+1*space, processed_task[2], width, label='FO')
-        plt.bar(x+2*space, processed_task[3], width, label='FPO')
+            # plt.bar(x - 1 * space, system_cost[0], width, label='Proposed')
+            # plt.bar(x - 0 * space, system_cost[1], width, label='LC')
+            # plt.bar(x + 1 * space, system_cost[2], width, label='FO')
+            # plt.bar(x + 2 * space, system_cost[3], width, label='FPO')
+            #
+            # plt.xticks(x)
+            # plt.ylim([0, 1])
+            # plt.xlabel('Number of tasks, ' + r'$\mathcal{M}$')
+            # plt.ylabel('Avg. system cost per task')
+            # plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.2),
+            #            fancybox=True, shadow=True, ncol=4)
+            #
+            # plt.savefig("./graphs/" + "UAV_CPU_SYSTEM_COST_FILE" + str(input) +"FU"+ str(FU))
+            # plt.clf()
+            #
+            # plt.bar(x - 1 * space, all_system_cost1[0], width, label='Proposed')
+            # plt.bar(x - 0 * space, all_system_cost1[1], width, label='LC')
+            # plt.bar(x + 1 * space, all_system_cost1[2], width, label='FO')
+            # plt.bar(x + 2 * space, all_system_cost1[3], width, label='FPO')
+            #
+            # plt.xticks(x)
+            # plt.xlabel('Number of tasks, ' + r'$\mathcal{M}$')
+            # plt.ylabel('System cost')
+            # plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.2),
+            #            fancybox=True, shadow=True, ncol=4)
+            #
+            # plt.savefig("./graphs/" + "UAV_CPU_SYSTEM_COST_ALL1_FILE" + str(input) +"FU"+ str(FU))
+            # plt.clf()
 
-        #plt.plot(x, processed_task[0],  marker=next(marker), label='Proposed')
-        #plt.plot(x, processed_task[1],  marker=next(marker), label='LC')
-        #plt.plot(x, processed_task[2],  marker=next(marker), label='FO')
-        #plt.plot(x, processed_task[3],  marker=next(marker), label='FPO')
+            plt.bar(x - 1 * space, all_system_cost2[0], width, label='Proposed')
+            plt.bar(x - 0 * space, all_system_cost2[1], width, label='LC')
+            plt.bar(x + 1 * space, all_system_cost2[2], width, label='FO')
+            plt.bar(x + 2 * space, all_system_cost2[3], width, label='FPO')
 
-        plt.xticks(x)
-        plt.ylim([0,MAX_TASK])
-        plt.xlabel('Number of tasks, ' + r'$\mathcal{M}$')
-        plt.ylabel('Number of processed tasks')
-        plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.2),
-                   fancybox=True, shadow=True, ncol=4)
-        plt.savefig("./graphs/" + "UAV_CPU_TASK_NUMBER" + str(FU))
-        plt.clf()
+            plt.xticks(x)
+            plt.xlabel('Number of tasks, ' + r'$\mathcal{M}$')
+            plt.ylabel('System cost')
+            plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.2),
+                       fancybox=True, shadow=True, ncol=4)
 
+            plt.savefig("./graphs/" + "UAV_CPU_SYSTEM_COST_ALL2_FILE" + str(input) +"FU"+ str(FU))
+            plt.clf()
 
-        plt.bar(x - 1 * space, system_cost[0], width, label='Proposed')
-        plt.bar(x - 0 * space, system_cost[1], width, label='LC')
-        plt.bar(x + 1 * space, system_cost[2], width, label='FO')
-        plt.bar(x + 2 * space, system_cost[3], width, label='FPO')
+            print("File No : ", input, file=f)
+            print("UAV의 CPU : ", FU, file=f)
+            print("[Number of processed tasks]", file=f)
+            print("Proposed : ", processed_task[0], file=f)
+            print("UAV Only : ", processed_task[1], file=f)
+            print("Bus Only : ", processed_task[2], file=f)
+            print("Fixed : ", processed_task[3], file=f)
 
-        plt.xticks(x)
-        plt.ylim([0, 1])
-        plt.xlabel('Number of tasks, ' + r'$\mathcal{M}$')
-        plt.ylabel('Avg. system cost per task')
-        plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.2),
-                   fancybox=True, shadow=True, ncol=4)
+            print("[System Cost]", file=f)
+            print("Proposed : ", all_system_cost2[0], file=f)
+            print("Proposed(평균) : ", np.mean(all_system_cost2[0]), file=f)
+            print("UAV Only : ", all_system_cost2[1], file=f)
+            print("UAV Only(평균) : ", np.mean(all_system_cost2[1]), file=f)
+            print("Bus Only : ", all_system_cost2[2], file=f)
+            print("Bus Only(평균) : ", np.mean(all_system_cost2[2]), file=f)
+            print("Fixed : ", all_system_cost2[3], file=f)
+            print("Fixed(평균) : ", np.mean(all_system_cost2[3]), file=f)
+            print("비율(Proposed / UAV) : ", np.mean(all_system_cost2[0]) / np.mean(all_system_cost2[1]), file=f)
+            print("비율(Proposed / BUS) : ", np.mean(all_system_cost2[0]) / np.mean(all_system_cost2[2]), file=f)
+            print("비율(Proposed / FIX) : ", np.mean(all_system_cost2[0]) / np.mean(all_system_cost2[3]), file=f)
+            print("", file=f)
 
-        plt.savefig("./graphs/" + "UAV_CPU_SYSTEM_COST" + str(FU))
-        plt.clf()
+            # print("Delay Cost", file=f)
+            # print("Proposed : ", delay_cost[0], file=f)
+            # print("Proposed(평균) : ", np.mean(delay_cost[0]), file=f)
+            # print("UAV Only : ", delay_cost[1], file=f)
+            # print("UAV Only(평균) : ", np.mean(delay_cost[1]), file=f)
+            # print("Bus Only : ", delay_cost[2], file=f)
+            # print("Bus Only(평균) : ", np.mean(delay_cost[2]), file=f)
+            # print("Fixed : ", delay_cost[3], file=f)
+            # print("Fixed(평균) : ", np.mean(delay_cost[3]), file=f)
+            # print("비율(Proposed / UAV) : ", np.mean(delay_cost[0]) / np.mean(delay_cost[1]), file=f)
+            # print("비율(Proposed / BUS) : ", np.mean(delay_cost[0]) / np.mean(delay_cost[2]), file=f)
+            # print("비율(Proposed / FIX) : ", np.mean(delay_cost[0]) / np.mean(delay_cost[3]), file=f)
+            # print("", file=f)
+            #
+            # print("Energy Cost", file=f)
+            # print("Proposed : ", energy_cost[0], file=f)
+            # print("Proposed(평균) : ", np.mean(energy_cost[0]), file=f)
+            # print("UAV Only : ", energy_cost[1], file=f)
+            # print("UAV Only(평균) : ", np.mean(energy_cost[1]), file=f)
+            # print("Bus Only : ", energy_cost[2], file=f)
+            # print("Bus Only(평균) : ", np.mean(energy_cost[2]), file=f)
+            # print("Fixed : ", energy_cost[3], file=f)
+            # print("Fixed(평균) : ", np.mean(energy_cost[3]), file=f)
+            # print("비율(Proposed / UAV) : ", np.mean(energy_cost[0]) / np.mean(energy_cost[1]), file=f)
+            # print("비율(Proposed / BUS) : ", np.mean(energy_cost[0]) / np.mean(energy_cost[2]), file=f)
+            # print("비율(Proposed / FIX) : ", np.mean(energy_cost[0]) / np.mean(energy_cost[3]), file=f)
 
-        plt.bar(x - 1 * space, all_system_cost1[0], width, label='Proposed')
-        plt.bar(x - 0 * space, all_system_cost1[1], width, label='LC')
-        plt.bar(x + 1 * space, all_system_cost1[2], width, label='FO')
-        plt.bar(x + 2 * space, all_system_cost1[3], width, label='FPO')
-
-        plt.xticks(x)
-        plt.xlabel('Number of tasks, ' + r'$\mathcal{M}$')
-        plt.ylabel('System cost')
-        plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.2),
-                   fancybox=True, shadow=True, ncol=4)
-
-        plt.savefig("./graphs/" + "UAV_CPU_SYSTEM_COST_ALL1" + str(FU))
-        plt.clf()
-
-
-        plt.bar(x - 1 * space, all_system_cost2[0], width, label='Proposed')
-        plt.bar(x - 0 * space, all_system_cost2[1], width, label='LC')
-        plt.bar(x + 1 * space, all_system_cost2[2], width, label='FO')
-        plt.bar(x + 2 * space, all_system_cost2[3], width, label='FPO')
-
-        plt.xticks(x)
-        plt.xlabel('Number of tasks, ' + r'$\mathcal{M}$')
-        plt.ylabel('System cost')
-        plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.2),
-                   fancybox=True, shadow=True, ncol=4)
-
-        plt.savefig("./graphs/" + "UAV_CPU_SYSTEM_COST_ALL2" + str(FU))
-        plt.clf()
-
-
-        print("UAV의 CPU : ", FU, file=f)
-        print("[Number of processed tasks]", file=f)
-        print("Proposed : ", processed_task[0], file=f)
-        print("UAV Only : ", processed_task[1], file=f)
-        print("Bus Only : ", processed_task[2], file=f)
-        print("Fixed : ", processed_task[3], file=f)
-
-        print("[System Cost]", file=f)
-        print("Proposed : ", system_cost[0], file=f)
-        print("Proposed(평균) : ", np.mean(system_cost[0]), file=f)
-        print("UAV Only : ", system_cost[1], file=f)
-        print("UAV Only(평균) : ", np.mean(system_cost[1]), file=f)
-        print("Bus Only : ", system_cost[2], file=f)
-        print("Bus Only(평균) : ", np.mean(system_cost[2]), file=f)
-        print("Fixed : ", system_cost[3], file=f)
-        print("Fixed(평균) : ", np.mean(system_cost[3]), file=f)
-        print("비율(Proposed / UAV) : ", np.mean(system_cost[0]) / np.mean(system_cost[1]), file=f)
-        print("비율(Proposed / BUS) : ", np.mean(system_cost[0]) / np.mean(system_cost[2]), file=f)
-        print("비율(Proposed / FIX) : ", np.mean(system_cost[0]) / np.mean(system_cost[3]), file=f)
-        print("", file=f)
-
-        print("Delay Cost", file=f)
-        print("Proposed : ", delay_cost[0], file=f)
-        print("Proposed(평균) : ", np.mean(delay_cost[0]), file=f)
-        print("UAV Only : ", delay_cost[1], file=f)
-        print("UAV Only(평균) : ", np.mean(delay_cost[1]), file=f)
-        print("Bus Only : ", delay_cost[2], file=f)
-        print("Bus Only(평균) : ", np.mean(delay_cost[2]), file=f)
-        print("Fixed : ", delay_cost[3], file=f)
-        print("Fixed(평균) : ", np.mean(delay_cost[3]), file=f)
-        print("비율(Proposed / UAV) : ", np.mean(delay_cost[0]) / np.mean(delay_cost[1]), file=f)
-        print("비율(Proposed / BUS) : ", np.mean(delay_cost[0]) / np.mean(delay_cost[2]), file=f)
-        print("비율(Proposed / FIX) : ", np.mean(delay_cost[0]) / np.mean(delay_cost[3]), file=f)
-        print("", file=f)
-
-        print("Energy Cost", file=f)
-        print("Proposed : ", energy_cost[0], file=f)
-        print("Proposed(평균) : ", np.mean(energy_cost[0]), file=f)
-        print("UAV Only : ", energy_cost[1], file=f)
-        print("UAV Only(평균) : ", np.mean(energy_cost[1]), file=f)
-        print("Bus Only : ", energy_cost[2], file=f)
-        print("Bus Only(평균) : ", np.mean(energy_cost[2]), file=f)
-        print("Fixed : ", energy_cost[3], file=f)
-        print("Fixed(평균) : ", np.mean(energy_cost[3]), file=f)
-        print("비율(Proposed / UAV) : ", np.mean(energy_cost[0]) / np.mean(energy_cost[1]), file=f)
-        print("비율(Proposed / BUS) : ", np.mean(energy_cost[0]) / np.mean(energy_cost[2]), file=f)
-        print("비율(Proposed / FIX) : ", np.mean(energy_cost[0]) / np.mean(energy_cost[3]), file=f)
+        bus_simul = []
+        for b in range(NUM_BUS):
+            buses_original2.pop()
 
     f.close()
 
@@ -617,46 +610,38 @@ if MODE == 15:  # LCOA를 증가시켜가며 실험
 
     for i in range(NUM_UAV):
         uavs_original.append(UAV(i, X, Y, Z))
-    make_bus(REAL, NUM_BUS)
 
-    STEP = 3
+    STEP = 5
     STEP_SIZE = MAX_TASK // STEP
     width = STEP_SIZE / 4 * 0.5
     space = STEP_SIZE / 2 / 4
 
     make_task(3, 15, 50, 150, MAX_TASK)
+    make_bus(REAL, NUM_BUS)
 
     x = np.arange(STEP_SIZE, MAX_TASK+1, STEP_SIZE)
     marker = itertools.cycle(('+', '2', '.', 'x'))
     plt.style.use(['science', 'ieee', 'no-latex'])
 
-    FU_STEP = 3
     plt.tight_layout()
+
     f = open('./graphs/LCOA_DISTANCE.txt', 'w')
 
-    for r in range(200, 400+1, 200):
-
-        FU = u
+    for r in range(200, 600+1, 200):
 
         uav_ratio1 = np.zeros(STEP)
         bus_ratio1 = np.zeros((STEP, NUM_BUS))
         uav_ratio2 = np.zeros(STEP)
         bus_ratio2 = np.zeros((STEP, NUM_BUS))
         system_cost = np.zeros((4, STEP))
-        all_system_cost1 = np.zeros((4, STEP))
-        all_system_cost2 = np.zeros((4, STEP))
-        delay_cost = np.zeros((4, STEP))
-        energy_cost = np.zeros((4, STEP))
         processed_task = np.zeros((4, STEP))
 
         is_end = [0, 0, 0, 0]
-        w1 = 1
-        w2 = 1
         k_index = 0
 
         for k in range(STEP_SIZE, MAX_TASK+1, STEP_SIZE):
 
-            print("FU : ", FU, "STEP : ", k_index + 1, "No. of tasks : ", k)
+            print("LCOA : ", r , "STEP : ", k_index + 1, "No. of tasks : ", k)
 
             if is_end[0]==0:
                 bus_simul, result1, cost1, cost2, rho_um1, rho_bm1, fum1, fbm1, mum1, num_bus1, t_count = proposed_algorithm2(FU, 0, lcoa_mode, simul_time, k)  # 제안 알고리즘
@@ -1461,6 +1446,7 @@ if MODE == 99:  # 버스를 이동하면서 시뮬레이션
     plt.show()
     plt.savefig("./graphs/" + "2D_MAP")
     plt.clf()
+
 if MODE == 100:
 
     for i in range(NUM_UAV):
