@@ -311,7 +311,7 @@ if MODE == 11:  # TASK의 개수를 증가시켜가며 실험
     for i in range(NUM_UAV):
         uavs_original.append(UAV(i, X, Y, Z))
 
-    STEP = 4
+    STEP = 5
     STEP_SIZE = MAX_TASK // STEP
     width = STEP_SIZE / 4 * 0.5
     space = STEP_SIZE / 2 / 4
