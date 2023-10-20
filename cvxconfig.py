@@ -2,9 +2,10 @@ import numpy as np
 
 REAL = 1
 lcoa_mode = 1
+simul_time = 6
 INPUT_FILE = 1
 SIMUL_TIME = 10
-CPU_MIN = 4
+CPU_MIN = 9
 CPU_MAX = 15
 FU_MAX = 30
 FB_MAX = 30
@@ -36,7 +37,6 @@ BUS_POS = [100, 200, 300, 400, 500, 600, 700, 800, 900]
 uavs_original = []
 buses_original = []
 buses_original2 = []
-#bus_simul = []
 
 task_original = []
 sm = np.ones((MAX_TASK, NUM_UAV))
